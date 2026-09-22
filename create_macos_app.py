@@ -15,46 +15,46 @@ def generate_app_icon(output_png_path):
     x0, y0, x1, y1 = pad, pad, size - pad, size - pad
     corner_radius = 188
 
-    # Background squircle: Dark Industrial Slate (#0c1017)
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=corner_radius, fill=(12, 16, 23, 255))
-    # Subtle inner border (#26334a)
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=corner_radius, outline=(38, 51, 74, 255), width=6)
+    # Background squircle: Warm Alabaster Cream (#fbfaf7)
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=corner_radius, fill=(251, 250, 247, 255))
+    # Subtle warm stone border (#d5cbbe)
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=corner_radius, outline=(213, 203, 190, 255), width=6)
 
-    # Sheet 1: Back sheet (slightly rotated/offset to left)
+    # Sheet 1: Back sheet (Warm Oat)
     s1_x0, s1_y0, s1_x1, s1_y1 = 280, 220, 680, 780
-    draw.rounded_rectangle([s1_x0, s1_y0, s1_x1, s1_y1], radius=24, fill=(28, 38, 56, 255), outline=(50, 66, 95, 255), width=4)
+    draw.rounded_rectangle([s1_x0, s1_y0, s1_x1, s1_y1], radius=24, fill=(235, 228, 213, 255), outline=(213, 203, 190, 255), width=4)
 
-    # Sheet 2: Middle sheet
+    # Sheet 2: Middle sheet (Soft Linen)
     s2_x0, s2_y0, s2_x1, s2_y1 = 330, 260, 730, 820
-    draw.rounded_rectangle([s2_x0, s2_y0, s2_x1, s2_y1], radius=24, fill=(45, 60, 88, 255), outline=(70, 92, 130, 255), width=4)
+    draw.rounded_rectangle([s2_x0, s2_y0, s2_x1, s2_y1], radius=24, fill=(244, 239, 230, 255), outline=(225, 218, 207, 255), width=4)
 
-    # Sheet 3: Front primary document sheet (Clean Off-White #f8fafc)
+    # Sheet 3: Front primary document sheet (Crisp Pure White)
     s3_x0, s3_y0, s3_x1, s3_y1 = 380, 300, 780, 860
-    draw.rounded_rectangle([s3_x0, s3_y0, s3_x1, s3_y1], radius=24, fill=(248, 250, 252, 255), outline=(226, 232, 240, 255), width=4)
+    draw.rounded_rectangle([s3_x0, s3_y0, s3_x1, s3_y1], radius=24, fill=(255, 255, 255, 255), outline=(220, 212, 198, 255), width=4)
 
     # Document content lines on front sheet
-    # Document title block
-    draw.rounded_rectangle([420, 350, 580, 375], radius=6, fill=(37, 99, 235, 255))
-    # Text line placeholders
-    draw.rounded_rectangle([420, 410, 740, 426], radius=4, fill=(203, 213, 225, 255))
-    draw.rounded_rectangle([420, 450, 740, 466], radius=4, fill=(203, 213, 225, 255))
-    draw.rounded_rectangle([420, 490, 660, 506], radius=4, fill=(203, 213, 225, 255))
+    # Document title block (Artisanal Terracotta Cognac)
+    draw.rounded_rectangle([420, 350, 580, 375], radius=6, fill=(194, 65, 12, 255))
+    # Text line placeholders (Warm Granite)
+    draw.rounded_rectangle([420, 410, 740, 426], radius=4, fill=(214, 206, 194, 255))
+    draw.rounded_rectangle([420, 450, 740, 466], radius=4, fill=(214, 206, 194, 255))
+    draw.rounded_rectangle([420, 490, 660, 506], radius=4, fill=(214, 206, 194, 255))
 
     # Inner image placeholder box on front sheet
-    draw.rounded_rectangle([420, 540, 740, 740], radius=12, fill=(241, 245, 249, 255), outline=(203, 213, 225, 255), width=3)
+    draw.rounded_rectangle([420, 540, 740, 740], radius=12, fill=(248, 245, 240, 255), outline=(214, 206, 194, 255), width=3)
     
     # Mountain/image symbol inside box
-    draw.polygon([(460, 700), (530, 610), (590, 680), (640, 630), (700, 700)], fill=(148, 163, 184, 255))
-    draw.ellipse([630, 580, 670, 620], fill=(37, 99, 235, 255))
+    draw.polygon([(460, 700), (530, 610), (590, 680), (640, 630), (700, 700)], fill=(133, 126, 117, 255))
+    draw.ellipse([630, 580, 670, 620], fill=(194, 65, 12, 255))
 
-    # Bottom badge: Page Sequence "1 • 2 • 3" Indicator Badge
+    # Bottom badge: Page Sequence "1 • 2 • 3" Indicator Badge (Deep Roasted Espresso #1c1917)
     b_x0, b_y0, b_x1, b_y1 = 230, 720, 530, 820
-    draw.rounded_rectangle([b_x0, b_y0, b_x1, b_y1], radius=20, fill=(37, 99, 235, 255), outline=(29, 78, 216, 255), width=4)
+    draw.rounded_rectangle([b_x0, b_y0, b_x1, b_y1], radius=20, fill=(28, 25, 23, 255), outline=(50, 45, 41, 255), width=4)
 
-    # Three white dots representing page order
+    # Three warm cream dots representing page order
     dot_y = (b_y0 + b_y1) // 2
     for i, dx in enumerate([300, 380, 460]):
-        draw.ellipse([dx - 18, dot_y - 18, dx + 18, dot_y + 18], fill=(255, 255, 255, 255))
+        draw.ellipse([dx - 18, dot_y - 18, dx + 18, dot_y + 18], fill=(251, 250, 247, 255))
 
     img.save(output_png_path, "PNG")
     print(f"Generated 1024x1024 icon: {output_png_path}")

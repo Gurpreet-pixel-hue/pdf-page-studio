@@ -272,6 +272,7 @@ function createPageCardElement(pageItem, index, totalPages) {
   card.dataset.id = pageItem.id;
   card.dataset.index = index;
   card.draggable = true;
+  card.style.animationDelay = `${Math.min(index * 35, 450)}ms`;
 
   // Source descriptor label
   const sourceLabel = pageItem.sourceType === 'pdf'
