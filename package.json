@@ -1,0 +1,22 @@
+{
+  "name": "pdf-page-studio",
+  "version": "1.0.0",
+  "description": "Visual image & PDF reordering, sequential numbering, and document merging desktop application",
+  "main": "index.html",
+  "scripts": {
+    "start": "bash ./launch.sh",
+    "test": "node test_merge.js",
+    "typecheck": "node --check app.js",
+    "rebuild-app": "python3 create_macos_app.py"
+  },
+  "keywords": [
+    "pdf",
+    "image-to-pdf",
+    "pdf-merge",
+    "visual-reorder",
+    "offline-app",
+    "macos"
+  ],
+  "author": "Gurpreet Singh Sandhu",
+  "license": "MIT"
+}

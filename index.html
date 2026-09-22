@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Page Studio - Visual Reorder & Document Merge</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="vendor/pdf.min.js"></script>
+</head>
+<body>
+  <!-- Global Application Wrapper -->
+  <div class="app-container">
+    
+    <!-- Top Navigation & Primary Telemetry Bar -->
+    <header class="top-bar">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">PDF PAGE STUDIO</h1>
+          <span class="brand-subtitle">Sequential Organizer & Assembler</span>
+        </div>
+      </div>
+
+      <div class="telemetry-bar">
+        <div class="telemetry-item">
+          <span class="telemetry-label">TOTAL PAGES</span>
+          <span class="telemetry-value" id="stat-page-count">0</span>
+        </div>
+        <div class="telemetry-divider"></div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">SOURCES</span>
+          <span class="telemetry-value" id="stat-file-count">0 files</span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <!-- Add Files Button -->
+        <label class="btn btn-secondary upload-btn" for="file-input">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Add Files</span>
+        </label>
+        <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/webp, image/bmp, image/gif, application/pdf" class="sr-only">
+
+        <!-- Reorder Options Dropdown Trigger -->
+        <div class="dropdown-wrapper">
+          <button class="btn btn-outline" id="sort-menu-btn" title="Sort & Reorder Options">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="6" x2="20" y2="6"></line>
+              <line x1="4" y1="12" x2="14" y2="12"></line>
+              <line x1="4" y1="18" x2="8" y2="18"></line>
+            </svg>
+            <span>Sort</span>
+          </button>
+          <div class="dropdown-menu" id="sort-dropdown">
+            <button class="dropdown-item" id="sort-upload-order">Reset to Upload Order</button>
+            <button class="dropdown-item" id="sort-name-asc">Sort by Filename (A to Z)</button>
+            <button class="dropdown-item" id="sort-name-desc">Sort by Filename (Z to A)</button>
+            <button class="dropdown-item" id="sort-reverse">Reverse Current Order</button>
+          </div>
+        </div>
+
+        <!-- Settings Drawer Button -->
+        <button class="btn btn-outline" id="settings-toggle-btn" title="Export Configuration">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Options</span>
+        </button>
+
+        <!-- Clear All -->
+        <button class="btn btn-outline btn-danger-hover" id="clear-all-btn" title="Remove all pages">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          <span>Clear</span>
+        </button>
+
+        <!-- Primary Export Action -->
+        <button class="btn btn-primary" id="export-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span id="export-btn-text">Export Merged PDF</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area with Dropzone & Page Grid -->
+    <main class="main-workspace">
+
+      <!-- Upload Banner / Sticky Drop Zone Indicator -->
+      <div class="drop-zone-overlay" id="global-drop-zone">
+        <div class="drop-zone-content">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span class="drop-zone-headline">DROP IMAGES OR PDFS HERE</span>
+          <span class="drop-zone-caption">Release to append pages directly to your document sequence</span>
+        </div>
+      </div>
+
+      <!-- Empty State View -->
+      <div class="empty-state-view" id="empty-state">
+        <div class="empty-state-box">
+          <div class="empty-icon-ring">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+          </div>
+          <h2 class="empty-title">Drag & Drop Images or PDFs to Start</h2>
+          <p class="empty-description">
+            Upload multiple photos, document scans, or existing PDF files. Pages will be automatically numbered in the exact order you upload, and can be visually reordered, rotated, or merged into one clean document.
+          </p>
+          <div class="empty-actions">
+            <label class="btn btn-primary" for="file-input">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Browse Files from Mac</span>
+            </label>
+          </div>
+          <div class="format-badges">
+            <span class="format-badge">PNG</span>
+            <span class="format-badge">JPG / JPEG</span>
+            <span class="format-badge">WEBP</span>
+            <span class="format-badge">BMP</span>
+            <span class="format-badge">PDF (Multi-Page)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Grid View -->
+      <div class="page-grid-container" id="page-grid-container" style="display: none;">
+        <!-- Informational sub-header -->
+        <div class="grid-toolbar">
+          <div class="grid-instruction">
+            <span class="badge-dot"></span>
+            <span>Drag cards to reorder pages • Numbers update automatically</span>
+          </div>
+          <div class="grid-quick-add">
+            <label class="btn btn-sm btn-outline" for="file-input">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add More Pages</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- The Reorderable Page Cards Grid -->
+        <div class="page-grid" id="page-grid">
+          <!-- Page cards injected dynamically via app.js -->
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Slide-over Settings Drawer -->
+    <div class="settings-drawer-backdrop" id="settings-backdrop"></div>
+    <aside class="settings-drawer" id="settings-drawer">
+      <div class="drawer-header">
+        <h3 class="drawer-title">Document Settings</h3>
+        <button class="drawer-close-btn" id="settings-close-btn" title="Close Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="drawer-body">
+        
+        <!-- Output File Name -->
+        <div class="form-group">
+          <label class="form-label" for="setting-filename">Output PDF File Name</label>
+          <input type="text" id="setting-filename" class="form-input" value="Merged_Document.pdf">
+          <span class="form-hint">Extension .pdf is automatically appended if omitted.</span>
+        </div>
+
+        <!-- Page Dimensions / Preset -->
+        <div class="form-group">
+          <label class="form-label">Page Dimensions</label>
+          <div class="radio-card-group">
+            <label class="radio-card">
+              <input type="radio" name="page-size" value="a4" checked>
+              <div class="radio-card-content">
+                <span class="radio-card-title">Standard A4</span>
+                <span class="radio-card-desc">210 × 297 mm (Fit image to page)</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="page-size" value="original">
+              <div class="radio-card-content">
+                <span class="radio-card-title">Original Dimensions</span>
+                <span class="radio-card-desc">Match each source image size</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="page-size" value="letter">
+              <div class="radio-card-content">
+                <span class="radio-card-title">US Letter</span>
+                <span class="radio-card-desc">8.5 × 11 in (US Standard)</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Orientation -->
+        <div class="form-group">
+          <label class="form-label">Page Orientation</label>
+          <div class="button-group">
+            <button type="button" class="btn-group-item active" data-orientation="auto">Auto (Best Fit)</button>
+            <button type="button" class="btn-group-item" data-orientation="portrait">Portrait</button>
+            <button type="button" class="btn-group-item" data-orientation="landscape">Landscape</button>
+          </div>
+        </div>
+
+        <!-- Margins -->
+        <div class="form-group">
+          <label class="form-label">Page Margins</label>
+          <div class="button-group">
+            <button type="button" class="btn-group-item active" data-margin="0">None (0 mm)</button>
+            <button type="button" class="btn-group-item" data-margin="15">Compact (5 mm)</button>
+            <button type="button" class="btn-group-item" data-margin="30">Normal (10 mm)</button>
+          </div>
+        </div>
+
+        <!-- Quality / Compression -->
+        <div class="form-group">
+          <label class="form-label">Image Rendering Quality</label>
+          <div class="button-group">
+            <button type="button" class="btn-group-item active" data-quality="1.0">Original (Lossless)</button>
+            <button type="button" class="btn-group-item" data-quality="0.85">Optimized (Smaller Size)</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="drawer-footer">
+        <button class="btn btn-primary btn-block" id="settings-apply-btn">Apply & Close</button>
+      </div>
+    </aside>
+
+    <!-- High-Resolution Inspection Lightbox Modal -->
+    <div class="lightbox-modal" id="lightbox-modal">
+      <div class="lightbox-overlay" id="lightbox-overlay"></div>
+      <div class="lightbox-dialog">
+        <div class="lightbox-header">
+          <div class="lightbox-title-group">
+            <span class="lightbox-badge" id="lightbox-page-badge">PAGE 1</span>
+            <span class="lightbox-filename" id="lightbox-filename">file.png</span>
+          </div>
+          <button class="lightbox-close-btn" id="lightbox-close-btn" title="Close (Esc)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="lightbox-viewport">
+          <img id="lightbox-image" src="" alt="Page Preview">
+        </div>
+        <div class="lightbox-footer">
+          <button class="btn btn-sm btn-outline" id="lightbox-prev-btn">Previous Page</button>
+          <span class="lightbox-meta" id="lightbox-meta">1920 × 1080 px</span>
+          <button class="btn btn-sm btn-outline" id="lightbox-next-btn">Next Page</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing Overlay Dialog (Export Progress) -->
+    <div class="processing-modal" id="processing-modal">
+      <div class="processing-card">
+        <div class="spinner-ring"></div>
+        <h4 class="processing-title" id="processing-title">Assembling PDF Document</h4>
+        <p class="processing-status" id="processing-status">Processing pages and encoding data...</p>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

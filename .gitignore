@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Temporary files
+temp_*
+*.tmp
+*.log
+
+# Node dependencies
+node_modules/
