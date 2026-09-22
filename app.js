@@ -23,13 +23,17 @@ const state = {
     pageSize: 'a4', // 'a4' | 'original' | 'letter'
     orientation: 'auto', // 'auto' | 'portrait' | 'landscape'
     margin: 0, // points
-    quality: 1.0 // 1.0 (lossless) or 0.85 (compressed)
+    quality: 1.0, // 1.0 (lossless) or 0.85 (compressed)
+    stampPageNumbers: false, // USP 2: Automatic page numbering
+    stampFormat: 'full', // 'full' (Page 1 of N) or 'simple' (1 / N)
+    enhanceScans: false // USP 3: Document Scan Enhancer (B&W Photocopy)
   }
 };
 
 // DOM Element Cache
 const elements = {
   fileInput: document.getElementById('file-input'),
+  cameraInput: document.getElementById('camera-input'),
   dropZoneOverlay: document.getElementById('global-drop-zone'),
   emptyState: document.getElementById('empty-state'),
   pageGridContainer: document.getElementById('page-grid-container'),
@@ -40,6 +44,11 @@ const elements = {
   exportPdfBtn: document.getElementById('export-pdf-btn'),
   exportBtnText: document.getElementById('export-btn-text'),
   
+  // Mobile Sticky Bottom Dock
+  mobileSortBtn: document.getElementById('mobile-sort-btn'),
+  mobileOptionsBtn: document.getElementById('mobile-options-btn'),
+  mobileExportBtn: document.getElementById('mobile-export-btn'),
+
   // Sort Dropdown
   sortMenuBtn: document.getElementById('sort-menu-btn'),
   sortDropdown: document.getElementById('sort-dropdown'),
@@ -55,6 +64,11 @@ const elements = {
   settingsCloseBtn: document.getElementById('settings-close-btn'),
   settingsApplyBtn: document.getElementById('settings-apply-btn'),
   settingFilename: document.getElementById('setting-filename'),
+
+  // USP 2 & 3 Controls
+  settingStampPages: document.getElementById('setting-stamp-pages'),
+  watermarkOptions: document.getElementById('watermark-options'),
+  settingEnhanceScans: document.getElementById('setting-enhance-scans'),
 
   // Lightbox Modal
   lightboxModal: document.getElementById('lightbox-modal'),
@@ -674,6 +688,32 @@ function setupSettingsListeners() {
       state.settings.quality = parseFloat(btn.dataset.quality);
     });
   });
+
+  // USP 2: Page Number Watermarking Toggle
+  if (elements.settingStampPages) {
+    elements.settingStampPages.addEventListener('change', (e) => {
+      state.settings.stampPageNumbers = e.target.checked;
+      if (elements.watermarkOptions) {
+        elements.watermarkOptions.style.display = e.target.checked ? 'block' : 'none';
+      }
+    });
+  }
+
+  // Stamp Format Buttons
+  document.querySelectorAll('[data-stamp-format]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-stamp-format]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.settings.stampFormat = btn.dataset.stampFormat;
+    });
+  });
+
+  // USP 3: Scan Enhancer Toggle
+  if (elements.settingEnhanceScans) {
+    elements.settingEnhanceScans.addEventListener('change', (e) => {
+      state.settings.enhanceScans = e.target.checked;
+    });
+  }
 }
 
 /* ==========================================================================
@@ -709,10 +749,14 @@ async function exportMergedPdf() {
   showProcessingModal('Assembling PDF Document', 'Initializing output engine...', 5);
 
   try {
-    const { PDFDocument, degrees } = PDFLib;
+    const { PDFDocument, degrees, rgb, StandardFonts } = PDFLib;
     const mergedPdf = await PDFDocument.create();
 
     const total = state.pages.length;
+    let watermarkFont = null;
+    if (state.settings.stampPageNumbers) {
+      watermarkFont = await mergedPdf.embedFont(StandardFonts.Helvetica);
+    }
 
     // Cache source PDFDocument instances to prevent re-parsing the same file multiple times
     const loadedSourcePdfs = new Map();
@@ -721,6 +765,8 @@ async function exportMergedPdf() {
       const item = state.pages[i];
       const progressPercent = Math.round(((i + 1) / total) * 85);
       updateProcessingProgress(`Processing Page ${i + 1} of ${total} (${item.fileName})...`, progressPercent);
+
+      let targetPage = null;
 
       if (item.sourceType === 'pdf') {
         // Handle PDF page
@@ -737,7 +783,7 @@ async function exportMergedPdf() {
         const nativeRot = copiedPage.getRotation().angle || 0;
         copiedPage.setRotation(degrees((nativeRot + item.rotation) % 360));
 
-        mergedPdf.addPage(copiedPage);
+        targetPage = mergedPdf.addPage(copiedPage);
 
       } else if (item.sourceType === 'image') {
         // Handle image page
@@ -745,20 +791,20 @@ async function exportMergedPdf() {
         let embeddedImage;
 
         // Try embedding directly or fallback to PNG/JPEG
-        if (item.fileName.toLowerCase().endsWith('.png') && item.rotation === 0 && state.settings.quality === 1.0) {
+        if (item.fileName.toLowerCase().endsWith('.png') && item.rotation === 0 && state.settings.quality === 1.0 && !state.settings.enhanceScans) {
           try {
             embeddedImage = await mergedPdf.embedPng(imageBytes);
           } catch (e) {
             embeddedImage = await embedCanvasImage(mergedPdf, item);
           }
-        } else if ((item.fileName.toLowerCase().endsWith('.jpg') || item.fileName.toLowerCase().endsWith('.jpeg')) && item.rotation === 0 && state.settings.quality === 1.0) {
+        } else if ((item.fileName.toLowerCase().endsWith('.jpg') || item.fileName.toLowerCase().endsWith('.jpeg')) && item.rotation === 0 && state.settings.quality === 1.0 && !state.settings.enhanceScans) {
           try {
             embeddedImage = await mergedPdf.embedJpg(imageBytes);
           } catch (e) {
             embeddedImage = await embedCanvasImage(mergedPdf, item);
           }
         } else {
-          // Re-rendered through canvas with user's exact rotation applied
+          // Re-rendered through canvas with user's exact rotation applied + scan enhancement if enabled
           embeddedImage = await embedCanvasImage(mergedPdf, item);
         }
 
@@ -766,12 +812,31 @@ async function exportMergedPdf() {
         const imgDims = embeddedImage.scale(1.0);
         const { pageWidth, pageHeight, renderWidth, renderHeight, x, y } = calculatePageLayout(imgDims, state.settings);
 
-        const page = mergedPdf.addPage([pageWidth, pageHeight]);
-        page.drawImage(embeddedImage, {
+        targetPage = mergedPdf.addPage([pageWidth, pageHeight]);
+        targetPage.drawImage(embeddedImage, {
           x: x,
           y: y,
           width: renderWidth,
           height: renderHeight
+        });
+      }
+
+      // USP 2: Automatic Page Number Watermarking
+      if (state.settings.stampPageNumbers && targetPage && watermarkFont) {
+        const text = state.settings.stampFormat === 'simple'
+          ? `${i + 1} / ${total}`
+          : `Page ${i + 1} of ${total}`;
+        const fontSize = 9;
+        const textWidth = watermarkFont.widthOfTextAtSize(text, fontSize);
+        const pageSize = targetPage.getSize();
+        const textX = (pageSize.width - textWidth) / 2;
+        const textY = 16; // 16pt from bottom edge
+        targetPage.drawText(text, {
+          x: textX,
+          y: textY,
+          size: fontSize,
+          font: watermarkFont,
+          color: rgb(0.3, 0.28, 0.26)
         });
       }
     }
@@ -819,6 +884,26 @@ async function embedCanvasImage(mergedPdf, item) {
       ctx.rotate((item.rotation * Math.PI) / 180);
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
       ctx.restore();
+
+      // USP 3: High-Contrast Document Scan Enhancer (B&W Photocopy Mode)
+      if (state.settings.enhanceScans) {
+        try {
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imgData.data;
+          for (let p = 0; p < d.length; p += 4) {
+            // Perceived luminance
+            const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+            // S-curve contrast boost to wipe yellow lighting and background phone shadows
+            const enhanced = lum > 175 ? 255 : (lum < 65 ? 0 : Math.round((lum - 65) * (255 / 110)));
+            d[p] = enhanced;
+            d[p + 1] = enhanced;
+            d[p + 2] = enhanced;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        } catch (e) {
+          console.warn('Scan enhance filter skipped:', e);
+        }
+      }
 
       canvas.toBlob(async (blob) => {
         try {
@@ -965,6 +1050,32 @@ function initializeApp() {
   // Action Buttons
   elements.clearAllBtn.addEventListener('click', clearAll);
   elements.exportPdfBtn.addEventListener('click', exportMergedPdf);
+
+  // Mobile Bottom Bar Actions
+  if (elements.cameraInput) {
+    elements.cameraInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+      elements.cameraInput.value = '';
+    });
+  }
+
+  if (elements.mobileSortBtn) {
+    elements.mobileSortBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      elements.sortDropdown.classList.toggle('active');
+    });
+  }
+
+  if (elements.mobileOptionsBtn) {
+    elements.mobileOptionsBtn.addEventListener('click', () => {
+      elements.settingsDrawer.classList.add('active');
+      elements.settingsBackdrop.classList.add('active');
+    });
+  }
+
+  if (elements.mobileExportBtn) {
+    elements.mobileExportBtn.addEventListener('click', exportMergedPdf);
+  }
 
   // Subsystems
   setupSortingListeners();

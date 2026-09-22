@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>PDF Page Studio - Visual Reorder & Document Merge</title>
   
-  <!-- High-End Editorial Typography Pairing: Plus Jakarta Sans & Syne -->
+  <!-- PWA & Mobile Meta Tags -->
+  <meta name="theme-color" content="#fbfaf7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PDF Studio">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+
+  <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
@@ -22,7 +30,7 @@
     <header class="top-bar">
       <div class="brand-section">
         <div class="brand-logo">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
             <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -32,58 +40,72 @@
         </div>
         <div class="brand-text">
           <h1 class="brand-title">PDF PAGE STUDIO</h1>
-          <span class="brand-subtitle">Editorial Document Assembler</span>
+          <span class="brand-subtitle">Sequential Document Assembler</span>
         </div>
       </div>
 
+      <!-- Telemetry Bar (Adapts on mobile) -->
       <div class="telemetry-bar">
         <div class="telemetry-item">
-          <span class="telemetry-label">SEQUENCE COUNT</span>
+          <span class="telemetry-label">PAGES</span>
           <span class="telemetry-value" id="stat-page-count">0</span>
         </div>
         <div class="telemetry-divider"></div>
         <div class="telemetry-item">
-          <span class="telemetry-label">DOCUMENTS</span>
-          <span class="telemetry-value" id="stat-file-count">0 files</span>
+          <span class="telemetry-label">DOCS</span>
+          <span class="telemetry-value" id="stat-file-count">0</span>
         </div>
       </div>
 
+      <!-- Desktop / Tablet Top Actions -->
       <div class="top-actions">
         <!-- Add Files Button -->
-        <label class="btn btn-secondary upload-btn" for="file-input">
+        <label class="btn btn-secondary upload-btn desktop-only-btn" for="file-input">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
           <span>Add Files</span>
         </label>
+
+        <!-- Camera Document Scanner Trigger (Desktop/Tablet/Mobile) -->
+        <label class="btn btn-secondary camera-btn desktop-only-btn" for="camera-input" title="Scan document using camera">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          <span>Scan</span>
+        </label>
+
+        <!-- Hidden Inputs -->
         <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/webp, image/bmp, image/gif, application/pdf" class="sr-only">
+        <input type="file" id="camera-input" accept="image/*" capture="environment" class="sr-only">
 
         <!-- Reorder Options Dropdown Trigger -->
-        <div class="dropdown-wrapper">
+        <div class="dropdown-wrapper desktop-only-btn">
           <button class="btn btn-outline" id="sort-menu-btn" title="Sort & Reorder Options">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="4" y1="6" x2="20" y2="6"></line>
               <line x1="4" y1="12" x2="14" y2="12"></line>
               <line x1="4" y1="18" x2="8" y2="18"></line>
             </svg>
-            <span>Sort Order</span>
+            <span>Sort</span>
           </button>
           <div class="dropdown-menu" id="sort-dropdown">
             <button class="dropdown-item" id="sort-upload-order">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
               <span>Reset to Upload Order</span>
             </button>
             <button class="dropdown-item" id="sort-name-asc">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
               <span>Sort by Filename (A to Z)</span>
             </button>
             <button class="dropdown-item" id="sort-name-desc">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
               <span>Sort by Filename (Z to A)</span>
             </button>
             <button class="dropdown-item" id="sort-reverse">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
               <span>Reverse Current Order</span>
             </button>
           </div>
@@ -95,26 +117,25 @@
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
-          <span>Options</span>
+          <span class="settings-btn-label">Options</span>
         </button>
 
         <!-- Clear All -->
-        <button class="btn btn-outline btn-danger-hover" id="clear-all-btn" title="Remove all pages">
+        <button class="btn btn-outline btn-danger-hover desktop-only-btn" id="clear-all-btn" title="Remove all pages">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
-          <span>Clear</span>
         </button>
 
-        <!-- Primary Export Action with Subtle Terracotta Elegance -->
-        <button class="btn btn-primary" id="export-pdf-btn">
+        <!-- Primary Export Action -->
+        <button class="btn btn-primary desktop-only-btn" id="export-pdf-btn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          <span id="export-btn-text">Export Merged PDF</span>
+          <span id="export-btn-text">Export PDF</span>
         </button>
       </div>
     </header>
@@ -137,7 +158,7 @@
         </div>
       </div>
 
-      <!-- Empty State View with Creamy Editorial Card Styling -->
+      <!-- Empty State View (Device-Agnostic Phrasing) -->
       <div class="empty-state-view" id="empty-state">
         <div class="empty-state-box">
           <div class="empty-icon-ring">
@@ -149,7 +170,7 @@
           </div>
           <h2 class="empty-title">Select or Drop Images and PDFs</h2>
           <p class="empty-description">
-            Upload multiple photos, high-resolution scans, or multi-page documents. Pages will be automatically numbered as <strong>Page 1, Page 2, Page 3</strong> in the exact order you select, and can be visually reordered, rotated, or merged into one clean publication-grade PDF.
+            Upload multiple photos, high-resolution scans, or multi-page documents. Pages are automatically numbered as <strong>Page 1, Page 2, Page 3</strong> in the exact order you select, and can be visually rearranged, rotated, or merged into one clean publication-grade PDF.
           </p>
           <div class="empty-actions">
             <label class="btn btn-primary btn-lg" for="file-input">
@@ -157,7 +178,14 @@
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
-              <span>Browse Images & PDFs</span>
+              <span>Choose Photos & Files</span>
+            </label>
+            <label class="btn btn-secondary btn-lg" for="camera-input">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span>Scan via Camera</span>
             </label>
           </div>
           <div class="format-badges">
@@ -176,7 +204,7 @@
         <div class="grid-toolbar">
           <div class="grid-instruction">
             <span class="badge-dot"></span>
-            <span>Drag cards to reorder pages • Numbers update in real-time</span>
+            <span>Drag or tap arrows to reorder • Numbers update in real-time</span>
           </div>
           <div class="grid-quick-add">
             <label class="btn btn-sm btn-secondary" for="file-input">
@@ -184,7 +212,14 @@
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
-              <span>Add More Files</span>
+              <span>Add More</span>
+            </label>
+            <label class="btn btn-sm btn-secondary" for="camera-input">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span>Scan</span>
             </label>
           </div>
         </div>
@@ -196,6 +231,51 @@
       </div>
 
     </main>
+
+    <!-- Mobile Sticky Bottom Action Bar (Thumb-Zone Navigation) -->
+    <nav class="mobile-bottom-bar" id="mobile-bottom-bar">
+      <label class="mobile-bar-btn" for="file-input">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>+ Files</span>
+      </label>
+
+      <label class="mobile-bar-btn" for="camera-input">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+        <span>Camera</span>
+      </label>
+
+      <button class="mobile-bar-btn" id="mobile-sort-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="6" x2="20" y2="6"></line>
+          <line x1="4" y1="12" x2="14" y2="12"></line>
+          <line x1="4" y1="18" x2="8" y2="18"></line>
+        </svg>
+        <span>Sort</span>
+      </button>
+
+      <button class="mobile-bar-btn" id="mobile-options-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span>Options</span>
+      </button>
+
+      <button class="mobile-bar-btn primary-action" id="mobile-export-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Export</span>
+      </button>
+    </nav>
 
     <!-- Slide-over Settings Drawer -->
     <div class="settings-drawer-backdrop" id="settings-backdrop"></div>
@@ -217,6 +297,42 @@
           <label class="form-label" for="setting-filename">Output PDF File Name</label>
           <input type="text" id="setting-filename" class="form-input" value="Merged_Document.pdf">
           <span class="form-hint">Extension .pdf is automatically appended if omitted.</span>
+        </div>
+
+        <!-- USP 2: Automatic Page Number Watermarking -->
+        <div class="form-group usp-group">
+          <div class="usp-header">
+            <label class="form-label" for="setting-stamp-pages">Automatic Page Numbering</label>
+            <span class="usp-pill">USP</span>
+          </div>
+          <label class="toggle-checkbox-card">
+            <input type="checkbox" id="setting-stamp-pages">
+            <div class="toggle-card-content">
+              <span class="toggle-card-title">Stamp page numbers on final PDF</span>
+              <span class="toggle-card-desc">Prints clean publication-grade numbers at bottom of each page</span>
+            </div>
+          </label>
+          <div class="watermark-options" id="watermark-options" style="display: none; margin-top: 8px;">
+            <div class="button-group">
+              <button type="button" class="btn-group-item active" data-stamp-format="full">"Page 1 of N"</button>
+              <button type="button" class="btn-group-item" data-stamp-format="simple">"1 / N"</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- USP 3: Document Scan Enhancer (B&W / Photocopy Filter) -->
+        <div class="form-group usp-group">
+          <div class="usp-header">
+            <label class="form-label" for="setting-enhance-scans">Document Scan Enhancer</label>
+            <span class="usp-pill">USP</span>
+          </div>
+          <label class="toggle-checkbox-card">
+            <input type="checkbox" id="setting-enhance-scans">
+            <div class="toggle-card-content">
+              <span class="toggle-card-title">High-Contrast B&W Photocopy Mode</span>
+              <span class="toggle-card-desc">Removes yellow camera lighting & dark shadows from document photos</span>
+            </div>
+          </label>
         </div>
 
         <!-- Page Dimensions / Preset -->
@@ -310,7 +426,7 @@
       </div>
     </div>
 
-    <!-- Processing Overlay Dialog (Export Progress) with Shimmer Animation -->
+    <!-- Processing Overlay Dialog (Export Progress) -->
     <div class="processing-modal" id="processing-modal">
       <div class="processing-card">
         <div class="spinner-ring"></div>

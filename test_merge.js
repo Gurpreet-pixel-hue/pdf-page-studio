@@ -77,23 +77,35 @@ async function runTests() {
 
   for (let i = 0; i < simulatedPages.length; i++) {
     const p = simulatedPages[i];
+    let targetPage;
     if (p.type === 'pdf') {
       const srcDoc = await PDFDocument.load(p.docBytes);
       const [copied] = await mergedDoc.copyPages(srcDoc, [p.pageIndex]);
       const currentRot = copied.getRotation().angle || 0;
       copied.setRotation(degrees((currentRot + p.rotation) % 360));
-      mergedDoc.addPage(copied);
+      targetPage = mergedDoc.addPage(copied);
     } else if (p.type === 'image') {
       const embedded = await mergedDoc.embedPng(p.bytes);
       // Standard A4: 595.28 x 841.89
-      const page = mergedDoc.addPage([595.28, 841.89]);
-      page.drawImage(embedded, {
+      targetPage = mergedDoc.addPage([595.28, 841.89]);
+      targetPage.drawImage(embedded, {
         x: 50,
         y: 100,
         width: 495.28,
         height: 641.89
       });
     }
+
+    // Draw USP 2 Watermark
+    const font = await mergedDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const watermarkText = `Page ${i + 1} of ${simulatedPages.length}`;
+    targetPage.drawText(watermarkText, {
+      x: 250,
+      y: 16,
+      size: 9,
+      font: font,
+      color: rgb(0.3, 0.28, 0.26)
+    });
   }
 
   const outputPdfBytes = await mergedDoc.save();
