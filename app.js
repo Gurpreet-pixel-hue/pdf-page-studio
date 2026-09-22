@@ -87,6 +87,15 @@ const elements = {
   processingStatus: document.getElementById('processing-status'),
   progressBarFill: document.getElementById('progress-bar-fill'),
 
+  // Install & App Icon Modal
+  btnInstallApp: document.getElementById('btn-install-app'),
+  drawerInstallBtn: document.getElementById('drawer-install-btn'),
+  installModal: document.getElementById('install-modal'),
+  installCloseBtn: document.getElementById('install-close-btn'),
+  installModalBackdrop: document.getElementById('install-modal-backdrop'),
+  btnDownloadMacShortcut: document.getElementById('btn-download-mac-shortcut'),
+  btnTriggerPwaInstall: document.getElementById('btn-trigger-pwa-install'),
+
   // Toast Container
   toastContainer: document.getElementById('toast-container')
 };
@@ -1081,9 +1090,151 @@ function initializeApp() {
   setupSortingListeners();
   setupSettingsListeners();
   setupLightboxListeners();
+  setupInstallListeners();
 
   // Initial State Render
   renderPageGrid();
+}
+
+/* ==========================================================================
+   Cross-Device App Launcher & PWA Installation System
+   ========================================================================== */
+
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (elements.btnInstallApp) {
+    elements.btnInstallApp.classList.add('install-ready');
+  }
+});
+
+function detectPlatform() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isMac = /Macintosh|Mac OS X/.test(ua) && !isIOS;
+  const isAndroid = /Android/.test(ua);
+  return { isIOS, isMac, isAndroid };
+}
+
+function openInstallModal() {
+  if (!elements.installModal) return;
+
+  const platform = detectPlatform();
+  const subtitle = document.getElementById('install-platform-subtitle');
+  const guideIos = document.getElementById('guide-ios');
+  const guideMac = document.getElementById('guide-mac');
+  const guideGeneric = document.getElementById('guide-generic');
+
+  if (guideIos) guideIos.style.display = 'none';
+  if (guideMac) guideMac.style.display = 'none';
+  if (guideGeneric) guideGeneric.style.display = 'none';
+
+  if (platform.isIOS) {
+    if (subtitle) subtitle.textContent = 'Add to iPhone / iPad Home Screen';
+    if (guideIos) guideIos.style.display = 'block';
+  } else if (platform.isMac) {
+    if (subtitle) subtitle.textContent = 'Add to Mac Desktop or Dock';
+    if (guideMac) guideMac.style.display = 'block';
+  } else {
+    if (subtitle) subtitle.textContent = 'Install App on this Device';
+    if (guideGeneric) guideGeneric.style.display = 'block';
+  }
+
+  elements.installModal.classList.add('active');
+}
+
+function closeInstallModal() {
+  if (elements.installModal) {
+    elements.installModal.classList.remove('active');
+  }
+}
+
+function downloadMacWebloc() {
+  const targetUrl = 'https://gurpreet-pixel-hue.github.io/pdf-page-studio/';
+  const weblocContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>URL</key>
+    <string>${targetUrl}</string>
+</dict>
+</plist>`;
+
+  const blob = new Blob([weblocContent], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'PDF Page Studio.webloc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+
+  showToast('Downloaded Mac shortcut! Drag it to your Desktop or Dock.');
+}
+
+async function triggerNativeInstall() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      showToast('PDF Page Studio installed to your device!');
+      closeInstallModal();
+    }
+    deferredInstallPrompt = null;
+  } else {
+    openInstallModal();
+  }
+}
+
+function setupInstallListeners() {
+  if (elements.btnInstallApp) {
+    elements.btnInstallApp.addEventListener('click', () => {
+      if (deferredInstallPrompt) {
+        triggerNativeInstall();
+      } else {
+        openInstallModal();
+      }
+    });
+  }
+
+  if (elements.drawerInstallBtn) {
+    elements.drawerInstallBtn.addEventListener('click', () => {
+      if (elements.settingsDrawer) {
+        elements.settingsDrawer.classList.remove('active');
+        elements.settingsBackdrop.classList.remove('active');
+      }
+      if (deferredInstallPrompt) {
+        triggerNativeInstall();
+      } else {
+        openInstallModal();
+      }
+    });
+  }
+
+  if (elements.installCloseBtn) {
+    elements.installCloseBtn.addEventListener('click', closeInstallModal);
+  }
+
+  if (elements.installModalBackdrop) {
+    elements.installModalBackdrop.addEventListener('click', closeInstallModal);
+  }
+
+  if (elements.btnDownloadMacShortcut) {
+    elements.btnDownloadMacShortcut.addEventListener('click', downloadMacWebloc);
+  }
+
+  if (elements.btnTriggerPwaInstall) {
+    elements.btnTriggerPwaInstall.addEventListener('click', triggerNativeInstall);
+  }
+
+  // Handle Escape key to close modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && elements.installModal && elements.installModal.classList.contains('active')) {
+      closeInstallModal();
+    }
+  });
 }
 
 // Start application once DOM is fully loaded

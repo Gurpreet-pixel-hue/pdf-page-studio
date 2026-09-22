@@ -133,12 +133,6 @@ html, body {
   flex-direction: column;
 }
 
-.brand-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .brand-title {
   font-family: var(--font-display);
   font-size: 14px;
@@ -147,19 +141,6 @@ html, body {
   color: var(--text-primary);
   line-height: 1.2;
   white-space: nowrap;
-}
-
-.version-badge {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: var(--radius-xs);
-  background-color: var(--accent-terracotta-glow);
-  color: var(--accent-terracotta);
-  border: 1px solid rgba(194, 65, 12, 0.3);
-  letter-spacing: 0.04em;
-  line-height: 1.4;
 }
 
 .brand-subtitle {
@@ -303,6 +284,25 @@ html, body {
 
 .btn-block {
   width: 100%;
+}
+
+.install-app-btn {
+  border-color: var(--border-strong);
+  background-color: var(--bg-surface-elevated);
+  transition: all 0.2s var(--spring-smooth);
+}
+
+.install-app-btn:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--accent-terracotta);
+  color: var(--accent-terracotta);
+}
+
+.install-app-btn.install-ready {
+  border-color: var(--accent-terracotta);
+  color: var(--accent-terracotta);
+  background-color: var(--bg-surface);
+  box-shadow: 0 0 0 1px var(--accent-terracotta), 0 2px 8px var(--accent-terracotta-glow);
 }
 
 .sr-only {
@@ -1434,6 +1434,230 @@ html, body {
   }
 }
 
+/* --------------------------------------------------------------------------
+   Install & App Icon Guidance Modal
+   -------------------------------------------------------------------------- */
+.install-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.install-modal.active {
+  display: flex;
+}
+
+.install-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(28, 25, 23, 0.55);
+  backdrop-filter: blur(6px);
+  animation: modalFadeIn 0.25s ease forwards;
+}
+
+.install-modal-card {
+  position: relative;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 480px;
+  max-width: 92vw;
+  box-shadow: var(--shadow-elevated);
+  animation: lightboxDialogEnter 0.28s var(--spring-bounce) forwards;
+  z-index: 1;
+}
+
+.install-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.install-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.install-app-icon-preview {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(28, 25, 23, 0.12);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.install-app-icon-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.install-modal-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.install-modal-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.install-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.install-close-btn:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.install-intro-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+/* iOS Safari 3-Step Guide */
+.install-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.install-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.install-step-number {
+  width: 26px;
+  height: 26px;
+  background-color: var(--accent-terracotta);
+  color: #ffffff;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.install-step-body {
+  flex: 1;
+}
+
+.install-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.install-step-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.install-step-glyph-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Mac Desktop Options */
+.mac-install-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mac-option-box {
+  padding: 14px 16px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.mac-option-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-terracotta);
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.mac-option-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+/* Settings Drawer Install Card */
+.install-drawer-group {
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.install-drawer-card {
+  padding: 12px 14px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.install-drawer-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 /* ==========================================================================
    Responsive Breakpoints & Device Adaptations (iPhone, iPad, Mobile)
    ========================================================================== */
@@ -1484,6 +1708,14 @@ html, body {
   /* Hide Desktop Top Buttons on Mobile */
   .desktop-only-btn {
     display: none !important;
+  }
+
+  .install-app-btn .install-btn-text {
+    display: none;
+  }
+
+  .install-app-btn {
+    padding: 6px 10px;
   }
 
   /* Show Mobile Sticky Bottom Dock */

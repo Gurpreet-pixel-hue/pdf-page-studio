@@ -15,15 +15,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PDF Studio">
-  <link rel="manifest" href="manifest.json?v=2.2.0">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.2.0">
+  <link rel="manifest" href="manifest.json?v=2.3.0">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.3.0">
 
   <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2.2.0">
+  <link rel="stylesheet" href="styles.css?v=2.3.0">
   <script src="vendor/pdf-lib.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
 </head>
@@ -44,10 +44,7 @@
           </svg>
         </div>
         <div class="brand-text">
-          <div class="brand-heading-row">
-            <h1 class="brand-title">PDF PAGE STUDIO</h1>
-            <span class="version-badge">v2.2</span>
-          </div>
+          <h1 class="brand-title">PDF PAGE STUDIO</h1>
           <span class="brand-subtitle">Sequential Document Assembler</span>
         </div>
       </div>
@@ -67,6 +64,16 @@
 
       <!-- Desktop / Tablet Top Actions -->
       <div class="top-actions">
+        <!-- Quick App Icon / Install Trigger -->
+        <button class="btn btn-outline install-app-btn" id="btn-install-app" title="Add App Icon to Home Screen, Dock, or Desktop">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            <path d="M12 7v6m-3-3l3 3 3-3"></path>
+          </svg>
+          <span class="install-btn-text">Add App Icon</span>
+        </button>
+
         <!-- Add Files Button -->
         <label class="btn btn-secondary upload-btn desktop-only-btn" for="file-input">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -400,6 +407,24 @@
           </div>
         </div>
 
+        <!-- App Launcher & Installation Section -->
+        <div class="form-group install-drawer-group">
+          <label class="form-label">Quick Launcher & App Icon</label>
+          <div class="install-drawer-card">
+            <div class="install-drawer-desc">
+              Add directly to your iPhone/iPad Home Screen, Mac Dock, or Desktop for 1-tap launching.
+            </div>
+            <button type="button" class="btn btn-secondary btn-block" id="drawer-install-btn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                <path d="M12 7v6m-3-3l3 3 3-3"></path>
+              </svg>
+              <span>Add App Icon</span>
+            </button>
+          </div>
+        </div>
+
       </div>
 
       <div class="drawer-footer">
@@ -446,11 +471,101 @@
       </div>
     </div>
 
+    <!-- Cross-Platform Install & App Icon Guidance Modal -->
+    <div class="install-modal" id="install-modal">
+      <div class="install-modal-backdrop" id="install-modal-backdrop"></div>
+      <div class="install-modal-card">
+        <div class="install-modal-header">
+          <div class="install-header-left">
+            <div class="install-app-icon-preview">
+              <img src="assets/icon-192.png?v=2.3.0" alt="PDF Studio Icon" width="38" height="38">
+            </div>
+            <div>
+              <h3 class="install-modal-title">Add PDF Page Studio</h3>
+              <span class="install-modal-subtitle" id="install-platform-subtitle">Create a 1-tap launcher icon</span>
+            </div>
+          </div>
+          <button class="install-close-btn" id="install-close-btn" title="Close modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="install-modal-content">
+          <!-- iOS / iPadOS Safari Guide -->
+          <div class="install-guide-section" id="guide-ios" style="display: none;">
+            <p class="install-intro-text">Follow these 3 quick steps in Safari to place PDF Page Studio directly on your Home Screen:</p>
+            <div class="install-steps-list">
+              <div class="install-step-item">
+                <div class="install-step-number">1</div>
+                <div class="install-step-body">
+                  <div class="install-step-title">Tap Safari's Share Button</div>
+                  <div class="install-step-desc">Located at the bottom of iPhone screen or top-right on iPad:</div>
+                  <div class="install-step-glyph-box">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+                    <span>Share Sheet</span>
+                  </div>
+                </div>
+              </div>
+              <div class="install-step-item">
+                <div class="install-step-number">2</div>
+                <div class="install-step-body">
+                  <div class="install-step-title">Select "Add to Home Screen"</div>
+                  <div class="install-step-desc">Scroll down the menu list and tap:</div>
+                  <div class="install-step-glyph-box">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                    <span>Add to Home Screen</span>
+                  </div>
+                </div>
+              </div>
+              <div class="install-step-item">
+                <div class="install-step-number">3</div>
+                <div class="install-step-body">
+                  <div class="install-step-title">Tap "Add" in Top-Right</div>
+                  <div class="install-step-desc">The official squircle icon will appear on your Home Screen as a standalone fullscreen app.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mac Desktop Guide -->
+          <div class="install-guide-section" id="guide-mac" style="display: none;">
+            <p class="install-intro-text">Launch PDF Page Studio directly from your Mac Desktop or Dock:</p>
+            <div class="mac-install-options">
+              <div class="mac-option-box">
+                <div class="mac-option-badge">1-CLICK DESKTOP SHORTCUT</div>
+                <p class="mac-option-desc">Download a lightweight macOS shortcut. Double-click to launch or drag it onto your Dock.</p>
+                <button class="btn btn-sm btn-primary" id="btn-download-mac-shortcut">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  <span>Download Mac Shortcut (.webloc)</span>
+                </button>
+              </div>
+              <div class="mac-option-box">
+                <div class="mac-option-badge">SAFARI WEBAPP TO DOCK</div>
+                <p class="mac-option-desc">In Safari on macOS Sonoma/Sequoia, select <strong>File &gt; Add to Dock...</strong> to run as a dedicated Mac desktop app.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Android / Desktop Chrome / Generic Guide -->
+          <div class="install-guide-section" id="guide-generic" style="display: none;">
+            <p class="install-intro-text">Install PDF Page Studio as a native app on this device for offline readiness and instant launch:</p>
+            <button class="btn btn-primary btn-block" id="btn-trigger-pwa-install" style="margin-top: 14px; justify-content: center;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line><path d="M12 7v6m-3-3l3 3 3-3"></path></svg>
+              <span>Install App Now</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div class="toast-container" id="toast-container"></div>
 
   </div>
 
-  <script src="app.js?v=2.2.0"></script>
+  <script src="app.js?v=2.3.0"></script>
 </body>
 </html>
