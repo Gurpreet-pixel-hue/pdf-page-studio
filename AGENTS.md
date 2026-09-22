@@ -53,10 +53,14 @@ pdf-page-studio/
 4. **USP 4 — Progressive Web App (PWA) Standalone**:
    - `manifest.json`, mobile meta viewport, apple-touch-icons for 1-tap "Add to Home Screen" on iOS & Android.
 
-### 3. Asset Versioning & Cache Invalidation
-- **Version Query Strings**: `styles.css?v=2.2.0`, `app.js?v=2.2.0`, `manifest.json?v=2.2.0` ensure immediate CDN and local browser cache bypass on every release.
+### 3. Cross-Device Launcher & Asset Cache Invalidation
+- **Quick App Launcher (`#btn-install-app`, `#drawer-install-btn`)**: Universal button enabling 1-click home screen / dock icon installation:
+  - **Android & Desktop Chrome/Edge**: Native W3C PWA install prompt (`beforeinstallprompt`).
+  - **iPhone & iPad (iOS/iPadOS Safari)**: Illustrated 3-step guide for Safari Share $\rightarrow$ Add to Home Screen.
+  - **Mac Desktop**: Safari Add to Dock + 1-click download of native `.webloc` shortcut file.
+- **Pristine Header**: Header typography kept clean and uncluttered (`PDF PAGE STUDIO`), eliminating version numbers from the visual brand row.
+- **Version Query Strings**: `styles.css?v=2.3.0`, `app.js?v=2.3.0`, `manifest.json?v=2.3.0` ensure immediate CDN and local browser cache bypass.
 - **Cache-Control Meta Directives**: `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` forces dynamic revalidation of the HTML document shell.
-- **Visual Build Identifier**: `.version-badge` (`v2.2`) permanently visible in the brand section for immediate runtime verification.
 
 ---
 
