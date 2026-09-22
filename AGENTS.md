@@ -53,6 +53,11 @@ pdf-page-studio/
 4. **USP 4 — Progressive Web App (PWA) Standalone**:
    - `manifest.json`, mobile meta viewport, apple-touch-icons for 1-tap "Add to Home Screen" on iOS & Android.
 
+### 3. Asset Versioning & Cache Invalidation
+- **Version Query Strings**: `styles.css?v=2.2.0`, `app.js?v=2.2.0`, `manifest.json?v=2.2.0` ensure immediate CDN and local browser cache bypass on every release.
+- **Cache-Control Meta Directives**: `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` forces dynamic revalidation of the HTML document shell.
+- **Visual Build Identifier**: `.version-badge` (`v2.2`) permanently visible in the brand section for immediate runtime verification.
+
 ---
 
 ## Anti-Vibecoding & Aesthetic Guidelines
