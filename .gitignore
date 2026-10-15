@@ -14,3 +14,6 @@ node_modules/
 
 # Superpowers executor scratch
 .superpowers/
+
+# Section model environment
+.venv-sections/

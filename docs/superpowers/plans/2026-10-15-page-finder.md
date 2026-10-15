@@ -21,7 +21,7 @@
 - Model input scaling is MobileNetV2's `preprocess_input`: **pixel / 127.5 − 1** (range −1..1), NHWC, input 192 rows × 576 columns. It is not ImageNet mean/std.
 - Strip geometry: rows 3% to 20% of the page height, full width, resized to 576×192.
 - New or changed browser assets bump the version to 2.9.0 (query strings in `index.html`, `ASSET_VERSION` in `app.js`).
-- Lazy loading: the section model, its head and the ONNX runtime are fetched only when the user starts a scan. Budget: under 4 MB for model + head (runtime wasm is already vendored).
+- Lazy loading: the section model, its head and the ONNX runtime are fetched only when the user starts a scan. Budget: under 10 MB for model + head (alpha 1.0 fp32 is about 9 MB; fetched once, then cached; runtime wasm is already vendored).
 
 ## Review Focus
 
@@ -297,7 +297,7 @@ async function scenario() {
   check('head has 1280 weights and a cutoff', head.w.length === 1280 && typeof head.b === 'number' && head.cutoff === 1.5, String(head.w.length));
 
   const bytes = new Uint8Array(await (await fetch('/models/section-features.ort')).arrayBuffer());
-  check('model file is within the size budget (< 4 MB)', bytes.length < 4e6, (bytes.length / 1e6).toFixed(2) + ' MB');
+  check('model file is within the size budget (< 10 MB)', bytes.length < 10e6, (bytes.length / 1e6).toFixed(2) + ' MB');
   const started = performance.now();
   const session = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
   const input = new Float32Array(192 * 576 * 3);
