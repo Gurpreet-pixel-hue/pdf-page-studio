@@ -1,4 +1,4 @@
-// Ingest checks: EXIF orientation, large photos, broken HEIC, optional real HEIC.
+// Ingest checks: EXIF orientation, large photos, HEIC message.
 function withExifOrientation(bytes, value) {
   const tiff = [0x4D, 0x4D, 0, 0x2A, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, value, 0, 0, 0, 0, 0, 0];
   const exif = [0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff];
@@ -32,22 +32,10 @@ async function scenario() {
   check('original dimensions are preserved', bigItem.width === 5000 && bigItem.height === 3000, `${bigItem.width}x${bigItem.height}`);
   check('working copy long edge <= 2000', Math.max(working.naturalWidth, working.naturalHeight) <= 2000, `${working.naturalWidth}x${working.naturalHeight}`);
 
-  // 3. A HEIC that cannot be decoded: error toast, no page added.
+  // 3. HEIC is not decoded here (iOS Safari converts to JPEG at upload): say what to do, add no page.
   const before = state.pages.length;
-  await handleFiles([new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])], 'broken.heic', { type: 'image/heic' })]);
-  check('broken HEIC adds no page', state.pages.length === before, `pages=${state.pages.length}`);
+  await handleFiles([new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])], 'photo.heic', { type: 'image/heic' })]);
+  check('HEIC adds no page', state.pages.length === before, `pages=${state.pages.length}`);
   const toasts = [...document.querySelectorAll('#toast-container .toast')].map((t) => t.textContent).join(' | ');
-  check('broken HEIC shows an error toast', /Failed to parse broken\.heic/.test(toasts), toasts);
-
-  // 4. Optional: a real HEIC served from UI_CHECK_FIXTURES/sample.heic.
-  const heic = await fetchFixture('sample.heic', 'image/heic');
-  if (!heic) {
-    note('SKIP real HEIC decode (no UI_CHECK_FIXTURES/sample.heic)');
-  } else {
-    const count = state.pages.length;
-    await handleFiles([heic]);
-    check('real HEIC decodes to one page', state.pages.length === count + 1, `pages=${state.pages.length}`);
-    const item = state.pages[count];
-    check('real HEIC page has dimensions', item && item.width > 0 && item.height > 0, item && `${item.width}x${item.height}`);
-  }
+  check('HEIC toast explains what to do', /HEIC.*(gallery|JPEG)/i.test(toasts), toasts);
 }

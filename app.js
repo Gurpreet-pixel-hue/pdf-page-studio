@@ -161,33 +161,6 @@ async function loadImageElement(blob) {
   }
 }
 
-let heicDecoderPromise = null;
-
-/** Load the HEIC decoder on first use. */
-function loadHeicDecoder() {
-  if (!heicDecoderPromise) {
-    heicDecoderPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = `vendor/heic2any.min.js?v=${ASSET_VERSION}`;
-      script.onload = () => (window.heic2any ? resolve(window.heic2any) : reject(new Error('HEIC decoder unavailable')));
-      script.onerror = () => {
-        heicDecoderPromise = null; // allow a retry on the next file
-        reject(new Error('HEIC decoder failed to load'));
-      };
-      document.head.appendChild(script);
-    });
-  }
-  return heicDecoderPromise;
-}
-
-/** Return a Blob the browser can decode: HEIC is converted to JPEG, anything else is returned as is. */
-async function toDecodableBlob(file) {
-  if (!ImageNormalize.isHeicLike(file)) return file;
-  const heic2any = await loadHeicDecoder();
-  const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-  return Array.isArray(result) ? result[0] : result;
-}
-
 /**
  * Ingest multiple files selected via file input or drag-drop
  */
@@ -221,7 +194,7 @@ async function handleFiles(fileList) {
       }
     } catch (err) {
       console.error('Error processing file:', file.name, err);
-      showToast(`Failed to parse ${file.name}`, 'error');
+      showToast(err.userMessage || `Failed to parse ${file.name}`, 'error');
     }
   }
 
@@ -280,12 +253,18 @@ async function parsePdfFile(file) {
 }
 
 /**
- * Load an image file: convert HEIC, normalise orientation, and build a
+ * Load an image file: normalise orientation, and build a
  * working copy (long edge <= WORKING_MAX_EDGE) for thumbnails and detection.
  * The full-resolution Blob is kept for export.
  */
 async function parseImageFile(file) {
-  const blob = await toDecodableBlob(file);
+  if (ImageNormalize.isHeicLike(file)) {
+    // iOS Safari converts HEIC to JPEG when a photo is picked, so HEIC only arrives via drag-and-drop.
+    throw Object.assign(new Error('HEIC is not supported in this browser'), {
+      userMessage: `${file.name}: HEIC photos can't be opened here. Pick the photo from your phone's gallery (it converts to JPEG) or convert it to JPEG first.`
+    });
+  }
+  const blob = file;
   const jpegOrientation = ImageNormalize.readJpegOrientation(await blob.slice(0, 131072).arrayBuffer());
   const { img, revoke } = await loadImageElement(blob);
 
