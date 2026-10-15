@@ -20,7 +20,7 @@ const scenarioPath = process.argv[2];
 const timeoutMs = Number(process.argv[3] || 90000);
 if (!scenarioPath) { console.error('usage: node tools/ui-check.js <scenario.js> [timeoutMs]'); process.exit(2); }
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.mjs': 'text/javascript' };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function handle(req, res) {
