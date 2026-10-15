@@ -2256,6 +2256,57 @@ html, body {
   color: var(--text-primary);
 }
 
+.split-modes {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background-color: var(--bg-surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+.split-mode-btn {
+  flex: 1;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.split-mode-btn[aria-selected="true"] {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.split-mode-btn:focus-visible {
+  outline: 2px solid var(--accent-terracotta);
+  outline-offset: 1px;
+}
+
+.split-field[hidden] {
+  display: none;
+}
+
+.split-field-wide {
+  flex: 1;
+}
+
+.split-field-wide input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.split-summary {
+  line-height: 1.5;
+}
+
 @media (max-width: 768px) {
   .crop-panel {
     padding: 12px;

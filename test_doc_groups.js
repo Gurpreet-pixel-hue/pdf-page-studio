@@ -4,7 +4,7 @@
  */
 
 const assert = require('assert');
-const { groupPagesIntoDocuments, moveDocument, removeDocument, splitDocument, joinDocuments, movePage, removePage } = require('./doc-groups.js');
+const { groupPagesIntoDocuments, moveDocument, removeDocument, splitDocument, splitDocumentInto, fixedSizes, parsePageRanges, joinDocuments, movePage, removePage } = require('./doc-groups.js');
 
 const fileA = { name: 'A.pdf' };
 const fileB = { name: 'B.pdf' };
@@ -201,6 +201,75 @@ const fiveA = () => [0, 1, 2, 3, 4].map(i => pdfPage(fileA, i, 5));
   assert.deepStrictEqual(labels(movePage(pages, -1, 2)), labels(pages), 'out-of-range is a no-op');
   assert.deepStrictEqual(labels(removePage(pages, 9)), labels(pages), 'out-of-range remove is a no-op');
   assert.strictEqual(pages.length, 5, 'input is not mutated');
+}
+
+// --- fixedSizes: every n pages, the last part takes what is left ---
+{
+  assert.deepStrictEqual(fixedSizes(10, 2), [2, 2, 2, 2, 2]);
+  assert.deepStrictEqual(fixedSizes(10, 3), [3, 3, 3, 1]);
+  assert.deepStrictEqual(fixedSizes(10, 1), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+  assert.deepStrictEqual(fixedSizes(10, 9), [9, 1]);
+  for (const bad of [0, -2, 10, 11, 2.5, NaN, '2']) assert.strictEqual(fixedSizes(10, bad), null, `n=${bad} is not a split`);
+  assert.strictEqual(fixedSizes(1, 1), null, 'a single page cannot be split');
+}
+
+// --- parsePageRanges: "1-8, 9-10, 11-13" ---
+{
+  const ok = parsePageRanges('1-8,9-10,11-13', 13);
+  assert.strictEqual(ok.error, null);
+  assert.deepStrictEqual(ok.parts.map(p => [p.from, p.to, !!p.implicit]), [[1, 8, false], [9, 10, false], [11, 13, false]]);
+  assert.deepStrictEqual(ok.sizes, [8, 2, 3]);
+  assert.deepStrictEqual(parsePageRanges(' 1 - 8 ;  9–10  11-13 ', 13).sizes, [8, 2, 3], 'spaces, semicolons, en dashes are fine');
+  assert.deepStrictEqual(parsePageRanges('1-3,4,5-6', 6).sizes, [3, 1, 2], 'a single page is a range of one');
+  // pages not listed are kept, never dropped: they become their own parts
+  const gaps = parsePageRanges('3-5', 8);
+  assert.deepStrictEqual(gaps.parts.map(p => [p.from, p.to, !!p.implicit]), [[1, 2, true], [3, 5, false], [6, 8, true]]);
+  assert.deepStrictEqual(parsePageRanges('1-8', 10).sizes, [8, 2], 'an unlisted tail becomes a part');
+  assert.deepStrictEqual(parsePageRanges('9-10,1-8', 10).sizes, [8, 2], 'ranges are taken in page order');
+  const errors = [
+    ['', 13, /enter/i],
+    ['abc', 13, /abc/],
+    ['1-', 13, /1-/],
+    ['5-3', 13, /backwards/i],
+    ['0-3', 13, /page 0|0/],
+    ['1-20', 13, /20.*13|13/],
+    ['1-5,5-8', 13, /more than one/i],
+    ['1-5,3-8', 13, /more than one/i],
+    ['1-13', 13, /whole document/i],
+    ['1.5-3', 13, /1\.5/]
+  ];
+  for (const [text, count, pattern] of errors) {
+    const r = parsePageRanges(text, count);
+    assert.ok(r.error && pattern.test(r.error), `"${text}" gives a helpful error, got: ${r.error}`);
+    assert.strictEqual(r.sizes, null);
+  }
+}
+
+// --- splitDocumentInto: any number of parts at once ---
+{
+  const ten = () => Array.from({ length: 10 }, (_, i) => pdfPage(fileA, i, 10));
+  const pages = ten();
+  const out = splitDocumentInto(pages, 0, [2, 2, 2, 2, 2]);
+  assert.deepStrictEqual(groupPagesIntoDocuments(out).map(d => d.rangeLabel), ['pp. 1–2 of 10', 'pp. 3–4 of 10', 'pp. 5–6 of 10', 'pp. 7–8 of 10', 'pp. 9–10 of 10']);
+  assert.deepStrictEqual(labels(out), labels(pages), 'order is unchanged');
+  assert.strictEqual(pages.some(p => p.splitBefore), false, 'input is not mutated');
+  assert.strictEqual(out[1], pages[1], 'pages that do not start a part keep their identity');
+  assert.deepStrictEqual(groupPagesIntoDocuments(out).map(d => d.canJoinNext), [true, true, true, true, false]);
+  // other documents are untouched and group indexes refer to documents
+  const mixed = [pdfPage(fileB, 0, 1), ...ten(), imgPage(img1)];
+  const m = splitDocumentInto(mixed, 1, [8, 2]);
+  assert.deepStrictEqual(groupPagesIntoDocuments(m).map(d => [d.fileName, d.count]), [['B.pdf', 1], ['A.pdf', 8], ['A.pdf', 2], ['scan.png', 1]]);
+  // invalid size lists are no-ops
+  for (const sizes of [null, [], [10], [5, 4], [5, 6], [0, 10], [5, 5, 0], [2.5, 7.5], [-1, 11], 'x']) {
+    assert.strictEqual(groupPagesIntoDocuments(splitDocumentInto(ten(), 0, sizes)).length, 1, `sizes ${JSON.stringify(sizes)} are a no-op`);
+  }
+  assert.strictEqual(groupPagesIntoDocuments(splitDocumentInto(ten(), 3, [5, 5])).length, 1, 'bad document index is a no-op');
+  // splitting an already split part again works, and the pieces export in order
+  const twice = splitDocumentInto(splitDocumentInto(ten(), 0, [4, 6]), 1, [3, 3]);
+  assert.deepStrictEqual(groupPagesIntoDocuments(twice).map(d => d.rangeLabel), ['pp. 1–4 of 10', 'pp. 5–7 of 10', 'pp. 8–10 of 10']);
+  // the two-part helper is the same thing
+  assert.deepStrictEqual(labels(splitDocument(ten(), 0, 3)), labels(splitDocumentInto(ten(), 0, [3, 7])));
+  assert.deepStrictEqual(groupPagesIntoDocuments(splitDocument(ten(), 0, 3)).map(d => d.count), [3, 7]);
 }
 
 console.log('doc-groups: all assertions passed');

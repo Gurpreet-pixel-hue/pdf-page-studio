@@ -1,12 +1,17 @@
 /**
  * PDF Page Studio - Split dialog
- * Choose where to cut a multi-page document: tap between two pages in a
- * thumbnail strip, or type the page number. The caller supplies the pages
- * to show and a preview(n) function that labels the two resulting parts.
+ * Choose how to cut a multi-page document into parts. Three modes share one
+ * dialog: one cut (tap between thumbnails or type a page number), fixed range
+ * (every n pages) and custom ranges ("1-8, 9-10, 11-13"). Every mode produces a
+ * list of part sizes. The caller supplies the pages to show and a
+ * preview(sizes) function that labels the resulting parts.
  */
 (function () {
+  const MAX_LISTED_PARTS = 6;
+  const MODES = ['cut', 'fixed', 'custom'];
+
   let ui = null;      // cached elements, built on first open
-  let session = null; // { count, cut, onApply, preview, opener }
+  let session = null; // { count, mode, cut, fixedText, customText, onApply, preview, opener }
 
   function build() {
     if (ui) return ui;
@@ -14,9 +19,13 @@
       modal: document.getElementById('split-modal'),
       backdrop: document.getElementById('split-backdrop'),
       title: document.getElementById('split-title'),
+      hint: document.getElementById('split-hint'),
       strip: document.getElementById('split-strip'),
-      input: document.getElementById('split-input'),
+      tabs: MODES.map((m) => document.getElementById('split-mode-' + m)),
+      fields: { cut: document.getElementById('split-cut-field'), fixed: document.getElementById('split-fixed-field'), custom: document.getElementById('split-custom-field') },
+      inputs: { cut: document.getElementById('split-input'), fixed: document.getElementById('split-fixed-input'), custom: document.getElementById('split-custom-input') },
       total: document.getElementById('split-total'),
+      fixedTotal: document.getElementById('split-fixed-total'),
       summary: document.getElementById('split-summary'),
       apply: document.getElementById('split-apply-btn'),
       cancel: document.getElementById('split-cancel-btn'),
@@ -27,57 +36,106 @@
     ui.close.addEventListener('click', close);
     ui.backdrop.addEventListener('click', close);
     ui.modal.addEventListener('keydown', onKeydown);
-    ui.input.addEventListener('input', onTyped);
+    ui.tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode, true)));
+    MODES.forEach((m) => ui.inputs[m].addEventListener('input', () => {
+      if (!session) return;
+      if (m === 'cut') session.cutText = ui.inputs.cut.value;
+      if (m === 'fixed') session.fixedText = ui.inputs.fixed.value;
+      if (m === 'custom') session.customText = ui.inputs.custom.value;
+      render();
+    }));
     ui.strip.addEventListener('click', (e) => {
       const gap = e.target.closest('.split-gap');
-      if (gap && session) choose(Number(gap.dataset.after), true);
+      if (!gap || !session) return;
+      session.cutText = gap.dataset.after;
+      ui.inputs.cut.value = session.cutText;
+      setMode('cut', false);
     });
     return ui;
   }
 
   /** A whole number from 1 to count - 1, or null. */
-  function parseCut(text, count) {
+  function parseWhole(text, count) {
     if (!/^\d+$/.test(String(text).trim())) return null;
     const n = Number(text);
     return n >= 1 && n < count ? n : null;
   }
 
-  function onTyped() {
-    if (!session) return;
-    const n = parseCut(ui.input.value, session.count);
-    if (n === null) {
-      session.cut = null;
-      render(false);
-    } else {
-      choose(n, false);
+  /** What the current mode would do: { sizes, error, note }. sizes is null when it cannot split. */
+  function current() {
+    const { count, mode } = session;
+    if (mode === 'cut') {
+      const n = parseWhole(session.cutText, count);
+      return n === null
+        ? { sizes: null, error: `Enter a page number from 1 to ${count - 1}.` }
+        : { sizes: [n, count - n] };
+    }
+    if (mode === 'fixed') {
+      const n = parseWhole(session.fixedText, count);
+      return n === null
+        ? { sizes: null, error: `Enter a whole number of pages from 1 to ${count - 1}.` }
+        : { sizes: DocGroups.fixedSizes(count, n) };
+    }
+    const text = session.customText;
+    const parsed = DocGroups.parsePageRanges(text, count);
+    if (parsed.error) return { sizes: null, error: parsed.error, quiet: !String(text).trim() };
+    const loose = parsed.parts.filter((p) => p.implicit).map((p) => (p.from === p.to ? `${p.from}` : `${p.from}–${p.to}`));
+    return {
+      sizes: parsed.sizes,
+      note: loose.length ? `Pages ${loose.join(', ')} are not listed, so each stretch stays a part of its own.` : ''
+    };
+  }
+
+  const letters = (i) => {
+    let s = '';
+    for (let n = i; n >= 0; n = Math.floor(n / 26) - 1) s = String.fromCharCode(65 + (n % 26)) + s;
+    return s;
+  };
+
+  function setMode(mode, focusInput) {
+    session.mode = mode;
+    render();
+    if (focusInput) {
+      ui.inputs[mode].focus();
+      if (ui.inputs[mode].select) ui.inputs[mode].select();
     }
   }
 
-  function choose(n, updateInput) {
-    session.cut = n;
-    render(updateInput);
-  }
+  function render() {
+    const { count, mode } = session;
+    ui.tabs.forEach((tab) => {
+      const on = tab.dataset.mode === mode;
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      tab.tabIndex = on ? 0 : -1;
+    });
+    MODES.forEach((m) => { ui.fields[m].hidden = m !== mode; });
+    ui.inputs.cut.value = session.cutText;
 
-  function render(updateInput) {
-    const { count, cut } = session;
-    if (updateInput && cut !== null) ui.input.value = String(cut);
+    const { sizes, error, note, quiet } = current();
+    session.sizes = sizes;
+
+    const boundaries = new Set();
+    if (sizes) sizes.reduce((sum, size, i) => { if (i < sizes.length - 1) boundaries.add(sum + size); return sum + size; }, 0);
     ui.strip.querySelectorAll('.split-gap').forEach((gap) => {
-      const selected = Number(gap.dataset.after) === cut;
+      const selected = boundaries.has(Number(gap.dataset.after));
       gap.setAttribute('aria-pressed', selected ? 'true' : 'false');
       gap.classList.toggle('selected', selected);
     });
-    const selectedGap = ui.strip.querySelector('.split-gap.selected');
-    if (selectedGap) ui.strip.scrollLeft = selectedGap.offsetLeft - ui.strip.clientWidth / 2;
-    ui.apply.disabled = cut === null;
-    ui.input.classList.toggle('invalid', cut === null);
-    if (cut === null) {
-      ui.summary.textContent = `Enter a page number from 1 to ${count - 1}.`;
-      ui.summary.classList.add('crop-hint-error');
-    } else {
-      const [a, b] = session.preview(cut);
-      ui.summary.textContent = `Part A: ${a}. Part B: ${b}.`;
-      ui.summary.classList.remove('crop-hint-error');
+    const firstCut = ui.strip.querySelector('.split-gap.selected');
+    if (firstCut) ui.strip.scrollLeft = firstCut.offsetLeft - ui.strip.clientWidth / 2;
+
+    ui.apply.disabled = !sizes;
+    ui.inputs[mode].classList.toggle('invalid', !sizes && !quiet);
+    ui.summary.classList.toggle('crop-hint-error', !sizes && !quiet);
+    if (!sizes) {
+      ui.summary.textContent = error;
+      return;
     }
+    const labels = session.preview(sizes);
+    const shown = labels.length > MAX_LISTED_PARTS ? labels.slice(0, MAX_LISTED_PARTS - 1) : labels;
+    let text = shown.map((label, i) => `Part ${letters(i)}: ${label}.`).join(' ');
+    if (labels.length > shown.length) text += ` … and ${labels.length - shown.length} more parts.`;
+    ui.summary.textContent = note ? `${text} ${note}` : text;
   }
 
   function buildStrip(pages) {
@@ -113,13 +171,21 @@
       close();
       return;
     }
-    if (e.key === 'Enter' && e.target === ui.input) {
+    if (e.key === 'Enter' && MODES.some((m) => e.target === ui.inputs[m])) {
       e.preventDefault();
       apply();
       return;
     }
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && ui.tabs.includes(e.target)) {
+      e.preventDefault();
+      const at = ui.tabs.indexOf(e.target);
+      const next = ui.tabs[(at + (e.key === 'ArrowRight' ? 1 : MODES.length - 1)) % MODES.length];
+      setMode(next.dataset.mode, false);
+      next.focus();
+      return;
+    }
     if (e.key !== 'Tab') return;
-    const focusable = [...ui.modal.querySelectorAll('button:not([disabled]), input')].filter((el) => el.offsetParent !== null);
+    const focusable = [...ui.modal.querySelectorAll('button:not([disabled]), input')].filter((el) => el.offsetParent !== null && el.tabIndex >= 0);
     if (focusable.length === 0) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -128,10 +194,10 @@
   }
 
   function apply() {
-    if (!session || session.cut === null) return;
-    const { cut, onApply } = session;
+    if (!session || !session.sizes) return;
+    const { sizes, onApply } = session;
     close();
-    if (onApply) onApply(cut);
+    if (onApply) onApply(sizes.slice());
   }
 
   function close() {
@@ -144,24 +210,37 @@
   }
 
   /**
-   * open({ title, pages, preview(n) -> [labelA, labelB], onApply(n) })
-   * `pages` are the document's pages in order (at least two); n is how many
-   * pages stay in the first part.
+   * open({ title, pages, preview(sizes) -> [label per part], onApply(sizes) })
+   * `pages` are the document's pages in order (at least two); `sizes` are the
+   * page counts of the resulting parts, in order, adding up to pages.length.
    */
   function open(options) {
     build();
     const count = options.pages.length;
     if (count < 2) return;
-    session = { count, cut: Math.floor(count / 2), onApply: options.onApply, preview: options.preview, opener: document.activeElement };
+    session = {
+      count,
+      mode: 'cut',
+      cutText: String(Math.floor(count / 2)),
+      fixedText: String(Math.min(2, count - 1)),
+      customText: '',
+      onApply: options.onApply,
+      preview: options.preview,
+      opener: document.activeElement
+    };
     ui.title.textContent = options.title || 'Split document';
-    ui.input.max = String(count - 1);
+    ui.inputs.cut.max = String(count - 1);
+    ui.inputs.fixed.max = String(count - 1);
+    ui.inputs.fixed.value = session.fixedText;
+    ui.inputs.custom.value = '';
     ui.total.textContent = `of ${count}`;
+    ui.fixedTotal.textContent = `of ${count}`;
     buildStrip(options.pages);
     ui.modal.classList.add('active');
     document.body.style.overflow = 'hidden';
-    render(true);
-    ui.input.focus();
-    ui.input.select();
+    render();
+    ui.inputs.cut.focus();
+    ui.inputs.cut.select();
   }
 
   window.SplitDialog = { open, close, isOpen: () => !!session };

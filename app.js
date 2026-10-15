@@ -602,11 +602,13 @@ function openSplitDialog(docIndex) {
   SplitDialog.open({
     title: `Split ${doc.fileName}`,
     pages,
-    preview: (n) => DocGroups.groupPagesIntoDocuments(DocGroups.splitDocument(pages, 0, n)).map((part) => part.rangeLabel),
-    onApply: (n) => {
-      state.pages = DocGroups.splitDocument(state.pages, docIndex, n);
+    preview: (sizes) => DocGroups.groupPagesIntoDocuments(DocGroups.splitDocumentInto(pages, 0, sizes)).map((part) => part.rangeLabel),
+    onApply: (sizes) => {
+      state.pages = DocGroups.splitDocumentInto(state.pages, docIndex, sizes);
       renderPageGrid();
-      showToast(`Split ${doc.fileName} after page ${n}. Move each part on its own.`);
+      showToast(sizes.length === 2
+        ? `Split ${doc.fileName} after page ${sizes[0]}. Move each part on its own.`
+        : `Split ${doc.fileName} into ${sizes.length} parts. Move each part on its own.`);
     }
   });
 }

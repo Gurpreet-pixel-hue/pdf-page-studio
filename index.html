@@ -531,12 +531,24 @@
             </svg>
           </button>
         </div>
-        <p class="crop-hint" id="split-hint">Tap between two pages to choose where to cut, or type the page number.</p>
+        <p class="crop-hint" id="split-hint">Choose how to split, then check the parts below.</p>
         <div class="split-strip" id="split-strip" role="group" aria-label="Pages of the document"></div>
+        <div class="split-modes" role="tablist" aria-label="How to split">
+          <button type="button" role="tab" class="split-mode-btn" id="split-mode-cut" data-mode="cut" aria-selected="true">One cut</button>
+          <button type="button" role="tab" class="split-mode-btn" id="split-mode-fixed" data-mode="fixed" aria-selected="false">Fixed range</button>
+          <button type="button" role="tab" class="split-mode-btn" id="split-mode-custom" data-mode="custom" aria-selected="false">Custom range</button>
+        </div>
         <div class="split-controls">
-          <label class="split-field" for="split-input">Split after page
+          <label class="split-field" id="split-cut-field" for="split-input">Split after page
             <input type="number" id="split-input" inputmode="numeric" min="1" step="1" value="1">
             <span id="split-total">of 2</span>
+          </label>
+          <label class="split-field" id="split-fixed-field" for="split-fixed-input" hidden>Pages in each part
+            <input type="number" id="split-fixed-input" inputmode="numeric" min="1" step="1" value="2">
+            <span id="split-fixed-total">of 2</span>
+          </label>
+          <label class="split-field split-field-wide" id="split-custom-field" for="split-custom-input" hidden>Page ranges
+            <input type="text" id="split-custom-input" placeholder="1-8, 9-10, 11-13" autocomplete="off" autocapitalize="off" spellcheck="false">
           </label>
         </div>
         <p class="split-summary" id="split-summary" aria-live="polite"></p>
