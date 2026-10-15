@@ -32,9 +32,11 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.7.0';
+const ASSET_VERSION = '2.7.1';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
+const CARD_THUMB_EDGE = 520;        // longest side of the small thumbnail shown on grid cards
+const INGEST_CONCURRENCY = 1;       // photos decoded at once. 2 gave no speed-up in desktop timing and doubles peak memory (an 18 MP photo decodes to ~70 MB), so it stays 1 until measured on a phone
 
 // DOM Element Cache
 const elements = {
@@ -139,6 +141,24 @@ function showToast(message, type = 'success') {
    ========================================================================== */
 
 /**
+ * Encode a canvas to a blob: URL. Much cheaper than toDataURL (no base64 string
+ * to build, hold in memory and re-parse on every render). Falls back to a data
+ * URL if the browser cannot make a blob.
+ */
+function canvasToObjectUrl(canvas, type, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : canvas.toDataURL(type, quality)), type, quality);
+  });
+}
+
+/** Free the blob URLs of pages that are gone (data URLs and shared URLs are ignored safely). */
+function releasePageUrls(items) {
+  const urls = new Set();
+  items.forEach((item) => [item.thumbnailDataUrl, item.cardThumbUrl, item.previewUrl].forEach((u) => { if (typeof u === 'string' && u.startsWith('blob:')) urls.add(u); }));
+  urls.forEach((u) => URL.revokeObjectURL(u));
+}
+
+/**
  * Decode an image from a URL. Browsers apply EXIF orientation here, so
  * naturalWidth/naturalHeight describe the upright photo.
  */
@@ -172,35 +192,47 @@ async function handleFiles(fileList) {
   const files = Array.from(fileList);
   showProcessingModal('Ingesting Files', `Processing ${files.length} source file(s)...`, 10);
 
-  let addedCount = 0;
-  let fileIndex = 0;
+  // Pages for each file, kept by position so the upload order survives files finishing out of order.
+  const results = new Array(files.length).fill(null);
+  let nextFile = 0;
+  let finished = 0;
 
-  for (const file of files) {
-    fileIndex++;
-    const progress = Math.round((fileIndex / files.length) * 80);
-    updateProcessingProgress(`Reading ${file.name}...`, progress);
+  async function ingestOne(file) {
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) return parsePdfFile(file);
+    if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp|gif)$/i.test(file.name)) return [await parseImageFile(file)];
+    console.warn('Unsupported file format:', file.name);
+    return [];
+  }
 
-    try {
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        const pdfPages = await parsePdfFile(file);
-        for (const p of pdfPages) {
-          state.pages.push(p);
-          addedCount++;
-        }
-      } else if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp|gif)$/i.test(file.name)) {
-        const imagePage = await parseImageFile(file);
-        state.pages.push(imagePage);
-        addedCount++;
-      } else {
-        console.warn('Unsupported file format:', file.name);
+  async function worker() {
+    while (nextFile < files.length) {
+      const index = nextFile++;
+      const file = files[index];
+      updateProcessingProgress(`Reading ${file.name} (${Math.min(finished + 1, files.length)} of ${files.length})...`, 10 + Math.round((finished / files.length) * 80));
+      try {
+        results[index] = await ingestOne(file);
+      } catch (err) {
+        console.error('Error processing file:', file.name, err);
+        showToast(err.userMessage || `Failed to parse ${file.name}`, 'error');
       }
-    } catch (err) {
-      console.error('Error processing file:', file.name, err);
-      showToast(err.userMessage || `Failed to parse ${file.name}`, 'error');
+      finished++;
     }
   }
 
-  hideProcessingModal();
+  try {
+    await Promise.all(Array.from({ length: Math.min(INGEST_CONCURRENCY, files.length) }, worker));
+  } finally {
+    hideProcessingModal();
+  }
+
+  let addedCount = 0;
+  results.forEach((pages) => {
+    (pages || []).forEach((page) => {
+      page.originalIndex = state.fileCounter++;
+      state.pages.push(page);
+      addedCount++;
+    });
+  });
 
   if (addedCount > 0) {
     renderPageGrid();
@@ -232,7 +264,7 @@ async function parsePdfFile(file) {
       viewport: viewport
     }).promise;
 
-    const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const thumbnailDataUrl = await canvasToObjectUrl(canvas, 'image/jpeg', 0.85);
 
     const originalViewport = page.getViewport({ scale: 1.0 });
 
@@ -243,8 +275,8 @@ async function parsePdfFile(file) {
       fileName: file.name,
       sourcePageIndex: pageNum - 1, // 0-based
       sourceTotalPages: numPages,
-      originalIndex: state.fileCounter++,
-      thumbnailDataUrl: thumbnailDataUrl,
+      originalIndex: 0, // assigned in upload order by handleFiles
+      thumbnailDataUrl: thumbnailDataUrl, // a blob: URL
       rotation: 0,
       width: originalViewport.width,
       height: originalViewport.height
@@ -287,6 +319,20 @@ async function parseImageFile(file) {
     }
     ctx.drawImage(img, 0, 0, work.width, work.height);
 
+    const type = keepsAlpha ? 'image/png' : 'image/jpeg';
+    const thumbnailDataUrl = await canvasToObjectUrl(canvas, type, 0.9); // a blob: URL (name kept for existing callers)
+    let cardThumbUrl = thumbnailDataUrl;
+    if (Math.max(work.width, work.height) > CARD_THUMB_EDGE) {
+      const small = ImageNormalize.fitWithin(work.width, work.height, CARD_THUMB_EDGE);
+      const smallCanvas = document.createElement('canvas');
+      smallCanvas.width = small.width;
+      smallCanvas.height = small.height;
+      const smallCtx = smallCanvas.getContext('2d');
+      smallCtx.imageSmoothingQuality = 'high';
+      smallCtx.drawImage(canvas, 0, 0, small.width, small.height);
+      cardThumbUrl = await canvasToObjectUrl(smallCanvas, type, 0.85);
+    }
+
     return {
       id: generateId(),
       sourceType: 'image',
@@ -295,8 +341,9 @@ async function parseImageFile(file) {
       fileName: file.name,
       sourcePageIndex: 0,
       sourceTotalPages: 1,
-      originalIndex: state.fileCounter++,
-      thumbnailDataUrl: canvas.toDataURL(keepsAlpha ? 'image/png' : 'image/jpeg', 0.9),
+      originalIndex: 0, // assigned in upload order by handleFiles
+      thumbnailDataUrl,
+      cardThumbUrl,
       previewUrl: null,
       rotation: 0,
       width,
@@ -453,6 +500,11 @@ const PREVIEW_MAX_PIXELS = 1200000;
 
 /** The image to show for a page: the cropped preview when there is one. */
 function pageThumbSrc(item) {
+  return item.previewUrl || item.cardThumbUrl || item.thumbnailDataUrl;
+}
+
+/** The large image to show when a page is opened full size. */
+function pageFullSrc(item) {
   return item.previewUrl || item.thumbnailDataUrl;
 }
 
@@ -473,6 +525,7 @@ function cropButtonHtml(item) {
 /** Rebuild the small cropped preview shown on cards and in the lightbox. */
 async function refreshCropPreview(item) {
   if (!item.cropQuad || !CropGeometry.isValidQuad(item.cropQuad)) {
+    releasePageUrls([{ previewUrl: item.previewUrl }]);
     item.previewUrl = null;
     return;
   }
@@ -490,7 +543,9 @@ async function refreshCropPreview(item) {
   out.width = warped.width;
   out.height = warped.height;
   out.getContext('2d').putImageData(new ImageData(warped.data, warped.width, warped.height), 0, 0);
-  item.previewUrl = out.toDataURL('image/jpeg', 0.85);
+  const previous = item.previewUrl;
+  item.previewUrl = await canvasToObjectUrl(out, 'image/jpeg', 0.85);
+  if (previous) releasePageUrls([{ previewUrl: previous }]);
 }
 
 function openCropEditor(index) {
@@ -508,6 +563,7 @@ function openCropEditor(index) {
     },
     onRemove: () => {
       CropState.resetCrop(item);
+      releasePageUrls([{ previewUrl: item.previewUrl }]);
       item.previewUrl = null;
       renderPageGrid();
       showToast('Crop removed.');
@@ -714,6 +770,7 @@ function reorderDocument(fromIndex, toIndex) {
 
 function removeDocumentAt(docIndex, doc) {
   if (doc.count > 1 && !confirm(`Remove "${doc.fileName}" (${doc.count} pages)?`)) return;
+  releasePageUrls(state.pages.slice(doc.start, doc.end));
   state.pages = DocGroups.removeDocument(state.pages, docIndex);
   renderPageGrid();
   showToast(`Removed ${doc.fileName}`);
@@ -1003,6 +1060,7 @@ function swapPages(indexA, indexB) {
  * Remove an individual page
  */
 function removePage(index) {
+  if (state.pages[index]) releasePageUrls([state.pages[index]]);
   state.pages = DocGroups.removePage(state.pages, index);
   renderPageGrid();
   showToast(`Removed Page ${index + 1}`);
@@ -1033,6 +1091,7 @@ async function startOver({ confirmFn = window.confirm.bind(window), fetchFn = wi
 function clearAll() {
   if (state.pages.length === 0) return;
   if (confirm('Are you sure you want to remove all uploaded pages?')) {
+    releasePageUrls(state.pages);
     state.pages = [];
     state.fileCounter = 0;
     renderPageGrid();
@@ -1103,7 +1162,7 @@ function openLightbox(index) {
   elements.lightboxPageBadge.textContent = `PAGE ${index + 1} OF ${state.pages.length}`;
   elements.lightboxFilename.textContent = item.fileName;
   elements.lightboxMeta.textContent = `${Math.round(item.width)} × ${Math.round(item.height)} px • Rotation: ${item.rotation}°`;
-  elements.lightboxImage.src = pageThumbSrc(item);
+  elements.lightboxImage.src = pageFullSrc(item);
   elements.lightboxImage.style.transform = `rotate(${item.rotation}deg)`;
 
   elements.lightboxPrevBtn.disabled = index === 0;

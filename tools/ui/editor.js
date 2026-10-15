@@ -79,7 +79,7 @@ async function scenario() {
   await waitFor(() => state.pages[0].cropState === 'manual' && state.pages[0].previewUrl);
   const item = state.pages[0];
   check('apply stores a manual crop', item.cropState === 'manual' && CropGeometry.isValidQuad(item.cropQuad));
-  check('apply builds a cropped preview', typeof item.previewUrl === 'string' && item.previewUrl.startsWith('data:image'));
+  check('apply builds a cropped preview', typeof item.previewUrl === 'string' && /^blob:/.test(item.previewUrl));
   check('editor closed after apply', !modalEl().classList.contains('active'));
   const badge = document.querySelector('#page-grid .page-card .crop-badge');
   check('card shows a MANUAL badge', !!badge && /manual/i.test(badge.textContent));
