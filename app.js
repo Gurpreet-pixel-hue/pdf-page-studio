@@ -1297,10 +1297,15 @@ function syncAutoCropButton() {
   elements.autoCropLabel.textContent = `Auto Crop (${count})`;
 }
 
+/** One Auto Crop detector for the whole page: the model loads once, on first use. */
+function getPageDetector() {
+  if (!pageDetector) pageDetector = PageDetect.createDetector();
+  return pageDetector;
+}
+
 /** The corner model is created on first use and loads only then. */
 function detectPage(item) {
-  if (!pageDetector) pageDetector = PageDetect.createDetector();
-  return loadImageFromUrl(item.thumbnailDataUrl).then((img) => pageDetector.detect(img));
+  return loadImageFromUrl(item.thumbnailDataUrl).then((img) => getPageDetector().detect(img));
 }
 
 async function runAutoCrop() {
@@ -1716,6 +1721,7 @@ function initializeApp() {
   elements.viewDocsBtn.addEventListener('click', () => setViewMode('documents'));
   elements.viewPagesBtn.addEventListener('click', () => setViewMode('pages'));
   elements.autoCropBtn.addEventListener('click', runAutoCrop);
+  document.getElementById('finder-open-btn').addEventListener('click', () => PageFinderUI.open());
   document.getElementById('brand-home').addEventListener('click', (e) => {
     e.preventDefault();
     startOver();
