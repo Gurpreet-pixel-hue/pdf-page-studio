@@ -1,6 +1,8 @@
 """Train the final head on all three journals and export the shipped files.
-Usage: python tools/model/sections_export.py ALPHA
-Writes models/section-features.ort, models/section-head.json, tools/model/section_ref.json."""
+Usage: python tools/model/sections_export.py ALPHA [--scores-only]
+Writes models/section-features.ort, models/section-head.json, tools/model/section_ref.json and, for the local
+browser comparison, ~/Documents/page_crop_ground_truth/section_scores_ref.json.
+--scores-only skips training and export and only rewrites the reference scores from the shipped head."""
 import sys, os, json, subprocess, shutil, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
@@ -18,10 +20,26 @@ def ref_input():
     return (ramp * 2.0 - 1.0).reshape(1, C.STRIP_H, C.STRIP_W, 3)
 
 
+def write_reference_scores(net, journals):
+    """Reference scores of the shipped model per journal page, for the local browser comparison (private, not committed)."""
+    head = json.load(open(os.path.join(REPO, 'models/section-head.json')))
+    w = np.array(head['w'], dtype=np.float32)
+    scores = {}
+    for name, j in journals.items():
+        f = net.predict(C.preprocess(C.render_strips(j['pdf'])), verbose=0)
+        scores[name] = (f @ w + head['b']).astype(float).round(4).tolist()
+    out = os.path.expanduser('~/Documents/page_crop_ground_truth/section_scores_ref.json')
+    json.dump(scores, open(out, 'w'))
+    print('wrote', out)
+
+
 def main():
     alpha = float(sys.argv[1])
     journals = C.load_journals()
     net = C.backbone(alpha)
+    if '--scores-only' in sys.argv:
+        write_reference_scores(net, journals)
+        return
     X, y = [], []
     for name, j in journals.items():
         strips = C.render_strips(j['pdf'])
@@ -53,6 +71,7 @@ def main():
     json.dump({'first16': ref[:16].astype(float).tolist(), 'sum': float(ref.sum()), 'length': int(ref.shape[0])},
               open(os.path.join(REPO, 'tools/model/section_ref.json'), 'w'))
     print('size MB', os.path.getsize(os.path.join(REPO, 'models/section-features.ort')) / 1e6)
+    write_reference_scores(net, journals)
 
 
 if __name__ == '__main__':

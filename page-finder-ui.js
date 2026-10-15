@@ -473,6 +473,7 @@
     close,
     isOpen: () => !!st && !!ui && ui.modal.classList.contains('active'),
     setDetector(d) { detector = d; },
-    setIndexAnalyser(fn) { analyseIndex = fn; }
+    setIndexAnalyser(fn) { analyseIndex = fn; },
+    defaultAnalyseIndex   // the real contents-page reader, used by the local acceptance scenario
   };
 }());
