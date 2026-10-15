@@ -2335,6 +2335,49 @@ html, body {
 
 
 /* --------------------------------------------------------------------------
+   Mid-size windows (laptops, a resized Mac window): the full header needs
+   about 1270px, so it shrinks in steps and finally wraps. A control is never
+   pushed off-screen. Phones (<= 768px) use their own bottom dock below.
+   -------------------------------------------------------------------------- */
+@media (min-width: 769px) and (max-width: 1320px) {
+  .top-bar {
+    padding: 12px 20px;
+    gap: 12px;
+  }
+
+  .top-actions {
+    gap: 8px;
+  }
+
+  /* Icon-only: every one of these buttons has a title and aria-label. */
+  .top-actions .btn > span:not(#export-btn-text) {
+    display: none;
+  }
+
+  .top-actions .btn {
+    padding-left: 11px;
+    padding-right: 11px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 980px) {
+  .brand-subtitle {
+    display: none;
+  }
+
+  .top-bar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .top-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 8px;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Accessibility: Reduced Motion
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {

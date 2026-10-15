@@ -32,7 +32,7 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.7.1';
+const ASSET_VERSION = '2.8.0';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 const CARD_THUMB_EDGE = 520;        // longest side of the small thumbnail shown on grid cards
@@ -1219,9 +1219,9 @@ function setupSettingsListeners() {
   elements.settingsBackdrop.addEventListener('click', closeSettings);
   elements.settingsApplyBtn.addEventListener('click', () => {
     // Read input values
-    let fn = elements.settingFilename.value.trim();
-    if (!fn.toLowerCase().endsWith('.pdf')) fn += '.pdf';
+    const fn = FileName.cleanPdfName(elements.settingFilename.value);
     state.settings.filename = fn;
+    elements.settingFilename.value = fn;
 
     const selectedSize = document.querySelector('input[name="page-size"]:checked');
     if (selectedSize) state.settings.pageSize = selectedSize.value;
@@ -1366,7 +1366,20 @@ function hideProcessingModal() {
    PDF-Lib Generation & Merging Pipeline
    ========================================================================== */
 
-async function exportMergedPdf() {
+/** Export button: ask what to call the file, then build and download the PDF. */
+async function startExport() {
+  if (state.pages.length === 0) {
+    showToast('Please add images or PDFs before exporting.', 'error');
+    return;
+  }
+  const fileName = await ExportNameDialog.ask({ defaultName: state.settings.filename });
+  if (!fileName) return;
+  state.settings.filename = fileName;
+  elements.settingFilename.value = fileName;
+  await exportMergedPdf({ fileName });
+}
+
+async function exportMergedPdf({ fileName } = {}) {
   if (state.pages.length === 0) {
     showToast('Please add images or PDFs before exporting.', 'error');
     return;
@@ -1456,7 +1469,7 @@ async function exportMergedPdf() {
     const downloadUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = downloadUrl;
-    a.download = state.settings.filename || 'Merged_Document.pdf';
+    a.download = fileName || state.settings.filename || 'Merged_Document.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1699,7 +1712,7 @@ function initializeApp() {
 
   // Action Buttons
   elements.clearAllBtn.addEventListener('click', clearAll);
-  elements.exportPdfBtn.addEventListener('click', exportMergedPdf);
+  elements.exportPdfBtn.addEventListener('click', startExport);
   elements.viewDocsBtn.addEventListener('click', () => setViewMode('documents'));
   elements.viewPagesBtn.addEventListener('click', () => setViewMode('pages'));
   elements.autoCropBtn.addEventListener('click', runAutoCrop);
@@ -1734,7 +1747,7 @@ function initializeApp() {
   }
 
   if (elements.mobileExportBtn) {
-    elements.mobileExportBtn.addEventListener('click', exportMergedPdf);
+    elements.mobileExportBtn.addEventListener('click', startExport);
   }
 
   // Subsystems

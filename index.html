@@ -15,15 +15,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PDF Studio">
-  <link rel="manifest" href="manifest.json?v=2.7.1">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.7.1">
+  <link rel="manifest" href="manifest.json?v=2.8.0">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.8.0">
 
   <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2.7.1">
+  <link rel="stylesheet" href="styles.css?v=2.8.0">
   <script src="vendor/pdf-lib.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
 </head>
@@ -65,7 +65,7 @@
       <!-- Desktop / Tablet Top Actions -->
       <div class="top-actions">
         <!-- Quick App Icon / Install Trigger -->
-        <button class="btn btn-outline install-app-btn" id="btn-install-app" title="Add App Icon to Home Screen, Dock, or Desktop">
+        <button class="btn btn-outline install-app-btn" id="btn-install-app" title="Add App Icon to Home Screen, Dock, or Desktop" aria-label="Add App Icon">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
             <line x1="12" y1="18" x2="12.01" y2="18"></line>
@@ -75,7 +75,7 @@
         </button>
 
         <!-- Add Files Button -->
-        <label class="btn btn-secondary upload-btn desktop-only-btn" for="file-input">
+        <label class="btn btn-secondary upload-btn desktop-only-btn" for="file-input" title="Add images or PDFs" aria-label="Add Files">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -84,7 +84,7 @@
         </label>
 
         <!-- Camera Document Scanner Trigger (Desktop/Tablet/Mobile) -->
-        <label class="btn btn-secondary camera-btn desktop-only-btn" for="camera-input" title="Scan document using camera">
+        <label class="btn btn-secondary camera-btn desktop-only-btn" for="camera-input" title="Scan document using camera" aria-label="Scan">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
             <circle cx="12" cy="13" r="4"></circle>
@@ -98,7 +98,7 @@
 
         <!-- Reorder Options Dropdown Trigger -->
         <div class="dropdown-wrapper desktop-only-btn">
-          <button class="btn btn-outline" id="sort-menu-btn" title="Sort & Reorder Options">
+          <button class="btn btn-outline" id="sort-menu-btn" title="Sort & Reorder Options" aria-label="Sort">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="4" y1="6" x2="20" y2="6"></line>
               <line x1="4" y1="12" x2="14" y2="12"></line>
@@ -127,7 +127,7 @@
         </div>
 
         <!-- Settings Drawer Button -->
-        <button class="btn btn-outline" id="settings-toggle-btn" title="Layout & Dimensions Configuration">
+        <button class="btn btn-outline" id="settings-toggle-btn" title="Layout & Dimensions Configuration" aria-label="Options">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -136,7 +136,7 @@
         </button>
 
         <!-- Clear All -->
-        <button class="btn btn-outline btn-danger-hover desktop-only-btn" id="clear-all-btn" title="Remove all pages">
+        <button class="btn btn-outline btn-danger-hover desktop-only-btn" id="clear-all-btn" title="Remove all pages" aria-label="Clear all pages">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -560,6 +560,31 @@
       </div>
     </div>
 
+    <!-- Export File Name Modal -->
+    <div class="crop-modal export-name-modal" id="export-name-modal" role="dialog" aria-modal="true" aria-labelledby="export-name-title">
+      <div class="crop-backdrop" id="export-name-backdrop"></div>
+      <div class="crop-panel export-name-panel">
+        <div class="crop-header">
+          <h4 id="export-name-title">Name your PDF</h4>
+          <button type="button" class="lightbox-close-btn" id="export-name-close-btn" title="Close (Esc)" aria-label="Close without exporting">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <label class="split-field split-field-wide export-name-field" for="export-name-input">File name
+          <input type="text" id="export-name-input" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="140">
+        </label>
+        <p class="split-summary">Saved as <strong id="export-name-preview"></strong></p>
+        <div class="crop-footer">
+          <span class="crop-spacer"></span>
+          <button type="button" class="btn btn-outline" id="export-name-cancel-btn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="export-name-confirm-btn">Export PDF</button>
+        </div>
+      </div>
+    </div>
+
     <div class="processing-modal" id="processing-modal">
       <div class="processing-card">
         <div class="spinner-ring"></div>
@@ -578,7 +603,7 @@
         <div class="install-modal-header">
           <div class="install-header-left">
             <div class="install-app-icon-preview">
-              <img src="assets/icon-192.png?v=2.7.1" alt="PDF Studio Icon" width="38" height="38">
+              <img src="assets/icon-192.png?v=2.8.0" alt="PDF Studio Icon" width="38" height="38">
             </div>
             <div>
               <h3 class="install-modal-title">Add PDF Page Studio</h3>
@@ -666,13 +691,15 @@
 
   </div>
 
-  <script src="crop-geometry.js?v=2.7.1"></script>
-  <script src="image-normalize.js?v=2.7.1"></script>
-  <script src="crop-state.js?v=2.7.1"></script>
-  <script src="doc-groups.js?v=2.7.1"></script>
-  <script src="crop-editor.js?v=2.7.1"></script>
-  <script src="page-detect.js?v=2.7.1"></script>
-  <script src="split-dialog.js?v=2.7.1"></script>
-  <script src="app.js?v=2.7.1"></script>
+  <script src="crop-geometry.js?v=2.8.0"></script>
+  <script src="image-normalize.js?v=2.8.0"></script>
+  <script src="crop-state.js?v=2.8.0"></script>
+  <script src="doc-groups.js?v=2.8.0"></script>
+  <script src="crop-editor.js?v=2.8.0"></script>
+  <script src="page-detect.js?v=2.8.0"></script>
+  <script src="file-name.js?v=2.8.0"></script>
+  <script src="split-dialog.js?v=2.8.0"></script>
+  <script src="export-name-dialog.js?v=2.8.0"></script>
+  <script src="app.js?v=2.8.0"></script>
 </body>
 </html>
