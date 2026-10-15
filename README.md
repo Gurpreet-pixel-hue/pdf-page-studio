@@ -25,7 +25,7 @@ All rendering, page extraction, image encoding, and PDF compilation occur **100%
   - Delete individual pages.
   - Fullscreen Lightbox Modal to inspect image resolution and text sharpness.
 - **Crop Photographed Pages**: manual four-corner crop with perspective correction on every photo, and Auto Crop, which finds the top sheet with a small on-device model (85% usable on the maintainer's own test photos, see models/MODEL_CARD.md; every result can be edited).
-- **Split a PDF Into Parts**: cut a multi-page PDF anywhere (tap between page thumbnails or type the page number), then move each part independently or join them back, instead of dragging pages one at a time.
+- **Split a PDF Into Parts**: cut a multi-page PDF with one cut (tap between page thumbnails or type the page number), every n pages (a 10-page PDF into five 2-page parts), or custom ranges like `1-8, 9-10, 11-13`; then move each part independently or join them back, instead of dragging pages one at a time.
 - **Batch Sorting Actions**:
   - Reset to original upload order.
   - Sort alphabetically by file name (A-Z or Z-A).

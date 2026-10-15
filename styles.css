@@ -2276,7 +2276,8 @@ html, body {
 
 .split-mode-btn {
   flex: 1;
-  padding: 7px 10px;
+  padding: 7px 6px;
+  white-space: nowrap;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
