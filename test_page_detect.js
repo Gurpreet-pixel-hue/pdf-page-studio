@@ -42,4 +42,14 @@ assert.throws(() => PageDetect.preprocessRGBA(new Uint8ClampedArray(7), 2), /RGB
   assert.strictEqual(PageDetect.decodeOutput([0, 0, 1, 0, 1, 1, 0, 1], NaN).confidence, 0, 'non-finite score gives 0');
   assert.strictEqual(PageDetect.decodeOutput([0, 0, 1], 1).quad, null, 'wrong length');
 }
+// --- downscaleSteps: never shrink by more than half per step, so the result does not depend on the browser's resize quality
+{
+  assert.deepStrictEqual(PageDetect.downscaleSteps(2000, 1500, 256), [[1000, 750], [500, 375], [256, 256]]);
+  assert.deepStrictEqual(PageDetect.downscaleSteps(400, 300, 256), [[256, 256]], 'under 2x needs one step');
+  assert.deepStrictEqual(PageDetect.downscaleSteps(256, 256, 256), [], 'already the right size');
+  const steps = PageDetect.downscaleSteps(5712, 3213, 256);
+  let [w, h] = [5712, 3213];
+  steps.slice(0, -1).forEach(([sw, sh]) => { assert.ok(sw >= w / 2 - 1 && sh >= h / 2 - 1); [w, h] = [sw, sh]; });
+  assert.deepStrictEqual(steps[steps.length - 1], [256, 256]);
+}
 console.log('page-detect: all assertions passed');

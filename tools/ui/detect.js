@@ -27,6 +27,14 @@ async function scenario() {
   await detector.detect(canvas);
   check('second call is fast (< 400 ms)', performance.now() - again < 400, Math.round(performance.now() - again) + ' ms');
 
+  // 1b. Sources that need no, one, or several halvings all work, and small sources agree with large ones.
+  const small = document.createElement('canvas'); small.width = small.height = 256;
+  small.getContext('2d').drawImage(canvas, 0, 0, 256, 256);
+  const fromSmall = await detector.detect(small);
+  check('a source already 256x256 is detected', !!fromSmall.quad && CropGeometry.quadIoU(fromSmall.quad, truth) >= 0.85);
+  const agree = found.quad && fromSmall.quad ? CropGeometry.quadIoU(found.quad, fromSmall.quad) : 0;
+  check('large and small sources agree (IoU >= 0.95)', agree >= 0.95, 'IoU ' + agree.toFixed(3));
+
   // 2. A blank frame is not a page.
   const blank = document.createElement('canvas'); blank.width = blank.height = 300;
   blank.getContext('2d').fillStyle = '#222'; blank.getContext('2d').fillRect(0, 0, 300, 300);

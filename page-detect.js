@@ -36,6 +36,24 @@
   }
 
   /**
+   * Sizes to draw through when shrinking a source to size x size, each at most
+   * half the previous one. Browsers resize large drops with different filters
+   * (Safari's is coarser); halving keeps the result close to area averaging,
+   * which is what the model was trained with.
+   */
+  function downscaleSteps(srcWidth, srcHeight, size) {
+    const steps = [];
+    let w = srcWidth, h = srcHeight;
+    while (w > size * 2 || h > size * 2) {
+      w = Math.max(size, Math.ceil(w / 2));
+      h = Math.max(size, Math.ceil(h / 2));
+      steps.push([w, h]);
+    }
+    if (w !== size || h !== size) steps.push([size, size]);
+    return steps;
+  }
+
+  /**
    * Model output (8 normalised coords TL,TR,BR,BL and a "page present" logit)
    * -> { quad, confidence }. Confidence says a page was found, not that the
    * crop is exact. An unusable quad gives { quad: null, confidence: 0 }.
@@ -55,7 +73,6 @@
     const cfg = Object.assign({}, DEFAULTS, options);
     let sessionPromise = null;
     let ort = null;
-    let scratch = null;
 
     function load() {
       if (!sessionPromise) {
@@ -76,14 +93,26 @@
 
     async function detect(drawable) {
       const session = await load();
-      if (!scratch) {
-        scratch = document.createElement('canvas');
-        scratch.width = scratch.height = INPUT_SIZE;
+      let source = drawable;
+      let width = drawable.naturalWidth || drawable.width;
+      let height = drawable.naturalHeight || drawable.height;
+      for (const [w, h] of downscaleSteps(width, height, INPUT_SIZE)) {
+        const step = document.createElement('canvas');
+        step.width = w;
+        step.height = h;
+        const stepCtx = step.getContext('2d', { willReadFrequently: true });
+        stepCtx.imageSmoothingEnabled = true;
+        stepCtx.imageSmoothingQuality = 'high';
+        stepCtx.drawImage(source, 0, 0, w, h);
+        source = step;
       }
-      const ctx = scratch.getContext('2d', { willReadFrequently: true });
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(drawable, 0, 0, INPUT_SIZE, INPUT_SIZE);
+      if (source === drawable) { // already the model's size: still copy it onto a canvas to read the pixels
+        const copy = document.createElement('canvas');
+        copy.width = copy.height = INPUT_SIZE;
+        copy.getContext('2d', { willReadFrequently: true }).drawImage(drawable, 0, 0);
+        source = copy;
+      }
+      const ctx = source.getContext('2d', { willReadFrequently: true });
       const input = preprocessRGBA(ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data, INPUT_SIZE);
       const outputs = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', input, [1, INPUT_SIZE, INPUT_SIZE, 3]) });
       const [coords, score] = session.outputNames.map((name) => outputs[name].data);
@@ -93,5 +122,5 @@
     return { load, detect };
   }
 
-  return { INPUT_SIZE, preprocessRGBA, decodeOutput, createDetector, CropGeometry };
+  return { INPUT_SIZE, preprocessRGBA, downscaleSteps, decodeOutput, createDetector, CropGeometry };
 }));
