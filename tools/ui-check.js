@@ -2,7 +2,8 @@
  * Run a UI scenario in headless Chrome and print its PASS/FAIL log.
  * Usage: node tools/ui-check.js tools/ui/<scenario>.js [timeoutMs]
  * Env:   CHROME (browser path), UI_CHECK_FIXTURES (dir served at /__fixture/),
- *        UI_CHECK_ROOT (app root, default: the repo root)
+ *        UI_CHECK_ROOT (app root, default: the repo root),
+ *        UI_CHECK_SHOT (write a PNG screenshot of the final page state to this path)
  * Needs Node 22+ (global WebSocket). Serves the app on a random local port
  * for the run only, and closes everything when done.
  */
@@ -73,6 +74,10 @@ function handle(req, res) {
     while (Date.now() - start < timeoutMs) {
       await sleep(400);
       if (await evaluate('window.__done === true')) { log = await evaluate('window.__log.join("\\n")'); break; }
+    }
+    if (process.env.UI_CHECK_SHOT) {
+      const shot = await send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_CHECK_SHOT, Buffer.from(shot.result.data, 'base64'));
     }
     if (log === null) { console.log('FAIL  scenario did not finish within ' + timeoutMs + 'ms'); }
     else { console.log(log); exitCode = /^FAIL/m.test(log) || !/^PASS/m.test(log) ? 1 : 0; }

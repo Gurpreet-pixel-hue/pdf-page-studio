@@ -357,6 +357,77 @@ function renderPageGrid() {
 }
 
 /* ==========================================================================
+   Crop: thumbnails, badges, editor wiring
+   ========================================================================== */
+
+const CROP_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path></svg>`;
+const PREVIEW_MAX_PIXELS = 1200000;
+
+/** The image to show for a page: the cropped preview when there is one. */
+function pageThumbSrc(item) {
+  return item.previewUrl || item.thumbnailDataUrl;
+}
+
+function cropBadgeHtml(item) {
+  if (!CropState.isCroppable(item)) return '';
+  if (item.cropState === 'auto') return '<span class="crop-badge auto" title="Cropped automatically">Auto</span>';
+  if (item.cropState === 'manual') return '<span class="crop-badge manual" title="Cropped by you">Manual</span>';
+  if (item.cropState === 'needs-review') return '<span class="crop-badge review" title="Edges unclear: check this page">Review</span>';
+  return '';
+}
+
+function cropButtonHtml(item) {
+  return CropState.isCroppable(item)
+    ? `<button class="action-icon-btn crop-btn" title="Crop this page">${CROP_ICON}</button>`
+    : '';
+}
+
+/** Rebuild the small cropped preview shown on cards and in the lightbox. */
+async function refreshCropPreview(item) {
+  if (!item.cropQuad || !CropGeometry.isValidQuad(item.cropQuad)) {
+    item.previewUrl = null;
+    return;
+  }
+  const img = await loadImageFromUrl(item.thumbnailDataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  const quadPx = item.cropQuad.map(([x, y]) => [x * canvas.width, y * canvas.height]);
+  const natural = CropGeometry.quadOutputSize(quadPx);
+  const size = CropGeometry.capPixels(natural.width, natural.height, PREVIEW_MAX_PIXELS);
+  const warped = CropGeometry.warpPerspective(ctx.getImageData(0, 0, canvas.width, canvas.height), quadPx, size.width, size.height);
+  const out = document.createElement('canvas');
+  out.width = warped.width;
+  out.height = warped.height;
+  out.getContext('2d').putImageData(new ImageData(warped.data, warped.width, warped.height), 0, 0);
+  item.previewUrl = out.toDataURL('image/jpeg', 0.85);
+}
+
+function openCropEditor(index) {
+  const item = state.pages[index];
+  if (!item || !CropState.isCroppable(item)) return;
+  CropEditor.open({
+    imageUrl: item.thumbnailDataUrl,
+    quad: item.cropQuad,
+    canRemove: !!item.cropQuad,
+    onApply: async (quad) => {
+      CropState.applyManualCrop(item, quad);
+      await refreshCropPreview(item);
+      renderPageGrid();
+      showToast('Crop applied.');
+    },
+    onRemove: () => {
+      CropState.resetCrop(item);
+      item.previewUrl = null;
+      renderPageGrid();
+      showToast('Crop removed.');
+    }
+  });
+}
+
+/* ==========================================================================
    Documents View (one card per source file)
    ========================================================================== */
 
@@ -402,6 +473,7 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
   const typeLabel = doc.sourceType === 'pdf' ? 'PDF' : 'IMAGE';
   const pagesWord = doc.count === 1 ? 'page' : 'pages';
   const hasMany = doc.count > 1;
+  const croppable = doc.count === 1 && CropState.isCroppable(first);
   // The thumbnail badge already shows the page count; the meta line only adds what it can't
   const detail = doc.partial
     ? doc.rangeLabel
@@ -410,11 +482,14 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
   card.innerHTML = `
     <div class="card-header">
       <span class="page-number-tag">DOC ${docIndex + 1}</span>
-      <span class="source-type-tag">${typeLabel}</span>
+      <span class="header-tags">
+        ${croppable ? cropBadgeHtml(first) : ''}
+        <span class="source-type-tag">${typeLabel}</span>
+      </span>
     </div>
 
     <div class="card-thumbnail-viewport doc-stack ${hasMany ? 'has-stack' : ''}">
-      <img src="${first.thumbnailDataUrl}"
+      <img src="${pageThumbSrc(first)}"
            alt="First page of ${escapeHtml(doc.fileName)}"
            class="card-thumbnail"
            style="transform: rotate(${first.rotation}deg);"
@@ -436,6 +511,8 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
           <rect x="14" y="14" width="7" height="7"></rect>
         </svg>
       </button>
+
+      ${croppable ? cropButtonHtml(first) : ''}
 
       <button class="action-icon-btn move-left-btn" title="Move document earlier" ${docIndex === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -464,6 +541,14 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
     e.stopPropagation();
     showDocumentPages(doc.start);
   });
+
+  const docCropBtn = card.querySelector('.crop-btn');
+  if (docCropBtn) {
+    docCropBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCropEditor(doc.start);
+    });
+  }
 
   card.querySelector('.move-left-btn').addEventListener('click', (e) => {
     e.stopPropagation();
@@ -555,11 +640,14 @@ function createPageCardElement(pageItem, index, totalPages) {
   card.innerHTML = `
     <div class="card-header">
       <span class="page-number-tag">PAGE ${index + 1}</span>
-      <span class="source-type-tag" title="${escapeHtml(pageItem.fileName)}">${sourceLabel}</span>
+      <span class="header-tags">
+        ${cropBadgeHtml(pageItem)}
+        <span class="source-type-tag" title="${escapeHtml(pageItem.fileName)}">${sourceLabel}</span>
+      </span>
     </div>
 
     <div class="card-thumbnail-viewport">
-      <img src="${pageItem.thumbnailDataUrl}" 
+      <img src="${pageThumbSrc(pageItem)}" 
            alt="Page ${index + 1}" 
            class="card-thumbnail" 
            style="transform: rotate(${pageItem.rotation}deg);" 
@@ -604,6 +692,8 @@ function createPageCardElement(pageItem, index, totalPages) {
         </svg>
       </button>
 
+      ${cropButtonHtml(pageItem)}
+
       <button class="action-icon-btn danger-btn delete-btn" title="Remove this page">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -620,6 +710,13 @@ function createPageCardElement(pageItem, index, totalPages) {
   const moveLeftBtn = card.querySelector('.move-left-btn');
   const moveRightBtn = card.querySelector('.move-right-btn');
   const deleteBtn = card.querySelector('.delete-btn');
+  const cropBtn = card.querySelector('.crop-btn');
+  if (cropBtn) {
+    cropBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCropEditor(index);
+    });
+  }
 
   // Zoom / Lightbox
   viewport.addEventListener('click', () => openLightbox(index));
@@ -853,7 +950,7 @@ function openLightbox(index) {
   elements.lightboxPageBadge.textContent = `PAGE ${index + 1} OF ${state.pages.length}`;
   elements.lightboxFilename.textContent = item.fileName;
   elements.lightboxMeta.textContent = `${Math.round(item.width)} × ${Math.round(item.height)} px • Rotation: ${item.rotation}°`;
-  elements.lightboxImage.src = item.thumbnailDataUrl;
+  elements.lightboxImage.src = pageThumbSrc(item);
   elements.lightboxImage.style.transform = `rotate(${item.rotation}deg)`;
 
   elements.lightboxPrevBtn.disabled = index === 0;
