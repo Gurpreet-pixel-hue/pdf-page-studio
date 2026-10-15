@@ -54,6 +54,18 @@ async function scenario() {
   try { await detector.score(new File([new Uint8Array([1, 2, 3, 4, 5])], 'x.pdf', { type: 'application/pdf' })); } catch (err) { bad = err; }
   check('an unreadable PDF gives a plain message', !!bad && /not a readable PDF/.test(bad.message), bad && bad.message);
 
+  // 5b. A password-protected PDF and a PDF with no pages: plain messages, never a hang.
+  const LOCKED_PDF = 'JVBERi0xLjcKJcK1wrYKJSBXcml0dGVuIGJ5IE11UERGIDEuMjguMgoKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFIvSW5mbzw8L1Byb2R1Y2VyPEYxNkRGMjAxNUZCMTdFQkJDMzIyOUE4ODUzMDE4RDcyNjdBREZDRkY0NzRDQkQzOUM5OUMyMUQzNzI4QzJEOTU+Pj4+PgplbmRvYmoKCjIgMCBvYmoKPDwvVHlwZS9QYWdlcy9Db3VudCAyL0tpZHNbNCAwIFIgNiAwIFJdPj4KZW5kb2JqCgozIDAgb2JqCjw8Pj4KZW5kb2JqCgo0IDAgb2JqCjw8L1R5cGUvUGFnZS9NZWRpYUJveFswIDAgNTk1IDg0Ml0vUm90YXRlIDAvUmVzb3VyY2VzIDMgMCBSL1BhcmVudCAyIDAgUj4+CmVuZG9iagoKNSAwIG9iago8PD4+CmVuZG9iagoKNiAwIG9iago8PC9UeXBlL1BhZ2UvTWVkaWFCb3hbMCAwIDU5NSA4NDJdL1JvdGF0ZSAwL1Jlc291cmNlcyA1IDAgUi9QYXJlbnQgMiAwIFI+PgplbmRvYmoKCnhyZWYKMCA3CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDA0MiAwMDAwMCBuIAowMDAwMDAwMTcyIDAwMDAwIG4gCjAwMDAwMDAyMzAgMDAwMDAgbiAKMDAwMDAwMDI1MSAwMDAwMCBuIAowMDAwMDAwMzQyIDAwMDAwIG4gCjAwMDAwMDAzNjMgMDAwMDAgbiAKCnRyYWlsZXIKPDwvU2l6ZSA3L1Jvb3QgMSAwIFIvSURbPDMyMzQ2RTI1QzM5NEMyQTYwREMyODJDM0JFQzJBODJDPjw0N0Y1MkNBOTU2NkRDRDUxN0U3MTNFRThFNzVEQUY3Mj5dL0VuY3J5cHQ8PC9GaWx0ZXIvU3RhbmRhcmQvUiA2L1YgNS9MZW5ndGggMjU2L1AgLTQvRW5jcnlwdE1ldGFkYXRhIHRydWUvU3RtRi9TdGRDRi9TdHJGL1N0ZENGL0NGPDwvU3RkQ0Y8PC9BdXRoRXZlbnQvRG9jT3Blbi9DRk0vQUVTVjMvTGVuZ3RoIDMyPj4+Pi9PPDFCMTVGQ0FDNjYwNEM0QUYwQUVBQkZCQTE2NUM5M0Q5OTFGNDk1QjE3OTdEN0Y1M0UyQzdEOUY2ODMxMjFFMjc1MUZBNkNDNEQ4Mjg4ODk5Mjk2OUJEMDlDNDZCMjRCQj4vVTwyMzkxNTg1MTkxQTY2NjY5RjVCNTc1QzAzODcxQjNCN0I5NTJCNzEwNEEyRDE3Mjc1NTg5MkUzOTM2NDk4OTlDMEVBMjJGRkQ2RTYyQ0JBQkRFMkZDNzJEMTYzNUQxRDI+L09FPDVBOTkxNjA5RDAwNDAxMzdERTE5NjFFOENDOThDNDBERjAzRTMxMDFFQTdBREY3RkFEOUZGMEYxQjRDQkFGQjg+L1VFPDA4NTRDNkNDNUU1MUY5RjNFRkI3RjZBMUJENjMyRDQzNDlGOTZENDgyM0RCNzdGNzhGODQ4NjM2MEI5Q0FDM0Q+L1Blcm1zPDk2MENGMkM4NjYwMEI2MUVCMzRFMTg2NUMxMTE3Rjc2Pj4+Pj4Kc3RhcnR4cmVmCjQ1NAolJUVPRgo='; // 2 blank pages, AES-256, user password "secret"
+  const lockedBytes = Uint8Array.from(atob(LOCKED_PDF), (c) => c.charCodeAt(0));
+  let locked = null;
+  try { await detector.score(new File([lockedBytes], 'locked.pdf', { type: 'application/pdf' })); } catch (err) { locked = err; }
+  check('a password-protected PDF gives a plain message', !!locked && /password protected/.test(locked.message), locked && locked.message);
+  // (a hand-written file: pdf.js reads a pdf-lib "empty" document as one blank page)
+  const zeroPages = new TextEncoder().encode('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R/Size 3>>\n%%EOF\n');
+  let noPages = null;
+  try { await detector.score(new File([zeroPages], 'empty.pdf', { type: 'application/pdf' })); } catch (err) { noPages = err; }
+  check('a PDF with no pages gives a plain message', !!noPages && /no pages|not a readable PDF/.test(noPages.message), noPages && noPages.message);
+
   // 6. Model download failure is reported and can be retried.
   const broken = SectionDetect.createSectionDetector({ modelUrl: 'models/missing.ort' });
   let failed = null;
