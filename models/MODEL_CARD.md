@@ -68,3 +68,69 @@ the pools described above in a working directory, so the data-preparation step i
 `python finetune.py --seed 0 --final --epochs 40 --draws 8 --rebg_p 0.7 --mend_p 0.2`, then `export_onnx.py`, then
 `python -m onnxruntime.tools.convert_onnx_models_to_ort <dir> --optimization_style Runtime`.
 Owner: the project maintainer. Re-evaluate whenever the weights change.
+
+
+---
+
+# Section-start model (`section-features.ort` + `section-head.json`)
+
+Finds the pages of a scanned lab journal where an experiment or assignment starts, for **Find page numbers**.
+Input: the top strip (rows 3% to 20%) of one page, resized to 576x192, pixels scaled to -1..1 (MobileNetV2
+`preprocess_input`). Output: 1280 features from MobileNetV2 alpha 1.0 (ImageNet weights, about 8.9 MB, fetched once
+and then cached); `section-head.json` holds a logistic-regression head (`w`, `b`, `cutoff`) that turns them into one
+score per page. Runs in the browser through the vendored minimal ONNX Runtime Web (output matches Python to 1.6e-5).
+
+## Intended use
+Suggest which pages begin a section so the user can write page numbers on a contents page. Always shown with the
+heading picture of each page and correctable by the user. Out of scope: reading the heading text or number, telling
+experiments from assignments, any journal layout other than lined paper with a handwritten "Experiment No. N" heading.
+
+## Data
+Three scanned journals by the same student on the same college stationery (CN 41 pages, DWM 36, WMC 72; 149 pages,
+34 section starts, true starts read by eye). Personal; not distributed. The WMC journal also has printed
+"EXPERIMENT NO. N" code pages that are not starts. The shipped head is trained on all three.
+
+## Evaluation (leave-one-journal-out: the head is trained on two journals and scored on the third)
+Cut-off 1.5 columns show pages missed / wrong pages proposed. "Top-N" is the number of true starts found when the app
+takes the N best pages (N = true number of starts).
+
+| backbone | CN AUC / top-N / cut-off | DWM AUC / top-N / cut-off | WMC AUC / top-N / cut-off |
+|---|---|---|---|
+| alpha 0.35 (1.5 MB) | 1.000 / 12 of 12 / 1 missed, 0 wrong | 0.989 / 10 of 11 / 4 missed, 0 wrong | 0.975 / 9 of 11 / 5 missed, 2 wrong |
+| alpha 0.5 (3.2 MB) | 1.000 / 12 of 12 / 3 missed, 0 wrong | 0.985 / 10 of 11 / 5 missed, 0 wrong | 1.000 / 11 of 11 / 1 missed, 0 wrong |
+| alpha 0.75 (5.9 MB) | 1.000 / 12 of 12 / 5 missed, 0 wrong | 0.960 / 9 of 11 / 4 missed, 0 wrong | 0.993 / 10 of 11 / 4 missed, 0 wrong |
+| **alpha 1.0 (8.9 MB, shipped)** | **1.000 / 12 of 12 / 2 missed, 0 wrong** | **1.000 / 11 of 11 / 3 missed, 0 wrong** | **1.000 / 11 of 11 / 0 missed, 0 wrong** |
+
+Only alpha 1.0 passed the gate (AUC at least 0.99 on each journal, top-N within one of exact, no wrong page above the
+cut-off), so the model budget was raised from 4 MB to 10 MB. Smaller backbones are an option if download size matters
+more than the DWM and WMC accuracy.
+
+Score gaps of the shipped pipeline, held out: CN true starts at least 1.12, best non-start -1.05; DWM lowest true
+starts -0.71 (a duplicate photo) and 0.06, best non-start -1.05; WMC true starts at least 1.62, best non-start 1.26.
+No single threshold separates all three, which is why:
+- with a contents page the app takes the best N pages but never one scoring at or below -0.5 (`DEFAULT_FLOOR`). The
+  floor only guards against pages that look nothing like a heading: on WMC 24 printed code pages score between -0.5
+  and 1.3 and are not screened out (they matter only if the entered count exceeds the real headings; they are then
+  marked "Unsure");
+- without a contents page it proposes pages above 1.5 (`DEFAULT_CUTOFF`: no wrong page on any journal, held out, but it
+  missed 2 on CN and 3 on DWM) and lists the next ten pages for one-tap adding.
+Both numbers were chosen after seeing these three journals; they are tuned defaults, not held-out results.
+
+## Local end-to-end run (in-sample, tools/ui/pagefinder-real.js)
+Headless Chrome on a Mac: CN 41 pages in 12.2 s (297 ms per page), DWM 36 pages in 8.2 s (226 ms), WMC 72 pages in
+17.3 s (240 ms). Browser scores agree with Python (mean absolute difference 0.13 to 0.18, max 0.98) and the browser picks
+the same top-N pages. These journals are in the training set, so the accuracy of this run is not an estimate; it shows
+the browser pipeline matches Python. Phone speed is not measured.
+
+## Limits
+- One student, one stationery: other layouts are unmeasured.
+- Adjacent duplicate photos of the same heading both score as headings.
+- Contents-photo entry counting (`index-scan.js`): reads a drawn table but counted 0 of 3 real contents pages (tilted,
+  paler lines); the app then says so and the user types the entry count. One adjustment pass (skew search, hue-based
+  line detection) counted CN correctly in one variant but did not read DWM or WMC.
+- The first scan downloads about 9 MB (model) once; the browser caches it.
+
+## Reproduce
+`tools/model/sections_eval.py` (evaluation), `tools/model/sections_export.py 1.0` (train head, export, reference files;
+`--scores-only` rewrites only the local reference scores). They need the private PDFs and
+`~/Documents/page_crop_ground_truth/journals.json`. Environment pinned in `tools/model/requirements-sections.txt`.

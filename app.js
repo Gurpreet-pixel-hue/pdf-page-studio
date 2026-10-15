@@ -32,7 +32,7 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.8.0';
+const ASSET_VERSION = '2.9.0';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 const CARD_THUMB_EDGE = 520;        // longest side of the small thumbnail shown on grid cards

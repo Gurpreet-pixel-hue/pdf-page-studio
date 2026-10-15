@@ -25,6 +25,11 @@ Do each upload both ways: **Add More / Choose from gallery** and **Scan (camera)
 9. Upload a very large photo (a 12 MP or larger original, not a screenshot).
    - Expect: it ingests, crops and exports; no crash or blank page.
 
+10. Tap Find page numbers on the landing page, choose a long scanned journal PDF (60+ pages) and, optionally, a photo of its contents page.
+    - Expect: the first scan downloads about 9 MB, then a progress bar ("Checking page 12 of 72…") that keeps moving; Cancel works at any moment; the result lists sections with heading pictures. Note the time for 70 pages and whether the browser reloads or runs out of memory.
+11. On the result screen, change a page with the page button, set an entry to "Not in this PDF", switch the counting choice, and tap Copy result.
+    - Expect: every change shows at once; Copy puts typed lines on the clipboard.
+
 ## Desktop (Chrome, Safari, Firefox)
 
 1. Drag a HEIC file onto the page.
