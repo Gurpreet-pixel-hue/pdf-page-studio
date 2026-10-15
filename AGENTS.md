@@ -76,7 +76,8 @@ pdf-page-studio/
   - **iPhone & iPad (iOS/iPadOS Safari)**: Illustrated 3-step guide for Safari Share $\rightarrow$ Add to Home Screen.
   - **Mac Desktop**: Safari Add to Dock + 1-click download of native `.webloc` shortcut file.
 - **Pristine Header**: Header typography kept clean and uncluttered (`PDF PAGE STUDIO`), eliminating version numbers from the visual brand row.
-- **Version Query Strings**: `styles.css?v=2.6.0`, `app.js?v=2.6.0`, `doc-groups.js?v=2.6.0`, `page-detect.js?v=2.6.0`, `split-dialog.js?v=2.6.0`, `manifest.json?v=2.6.0` ensure immediate CDN and local browser cache bypass.
+- **Version Query Strings**: `styles.css?v=2.6.1`, `app.js?v=2.6.1`, `doc-groups.js?v=2.6.1`, `page-detect.js?v=2.6.1`, `split-dialog.js?v=2.6.1`, `manifest.json?v=2.6.1` ensure immediate CDN and local browser cache bypass.
+- **Start over (title link)**: the `PDF PAGE STUDIO` brand (`#brand-home`, an `<a href="./">` with an accessible name and focus ring) restarts the app, mainly so phones have a way out. `startOver()` in `app.js` asks for confirmation only when pages are loaded, refetches the page's own scripts, styles and manifest with `cache: 'reload'` (4 s cap, failures ignored), then `location.replace`s to `?fresh=<timestamp>`; on load the param is stripped with `history.replaceState`. It deliberately does not touch localStorage, IndexedDB or Cache Storage: the site has none of its own and the `github.io` origin is shared with other projects. Scenario: `tools/ui/startover.js` (the real navigation is not exercised, only its inputs).
 - **Cache-Control Meta Directives**: `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` forces dynamic revalidation of the HTML document shell.
 
 ### 4. Documents View & Pages View
@@ -88,7 +89,7 @@ pdf-page-studio/
 - **Cut model**: a page flagged `splitBefore: true` starts a new document even when the page before it is from the same file (`DocGroups.groupPagesIntoDocuments`). `DocGroups.splitDocument` flags BOTH parts' first pages (a single flag on part B would let part B merge back into part A once it is moved in front of it). Parts are ordinary document cards, so the existing arrows and drag-and-drop move them independently; a part can be split again. `canJoinNext` is true only when the next card is the same file's direct continuation (flagged, next source page number), which shows a Join button (`DocGroups.joinDocuments`).
 - **Page-level edits keep cuts honest**: Pages-view move, swap and remove go through `DocGroups.movePage` / `removePage`, which hand a moved or removed part-start flag to the next page of the same file, so edits never silently merge two parts. Export is unchanged: it follows `state.pages` order. Cuts live in memory only.
 - **Tests**: `test_doc_groups.js` (pure logic) and `npm run ui-check -- tools/ui/split.js` (dialog, typed and visual cuts, invalid input, moves, join, page-level edits, export page count).
-- **Version**: assets are cache-busted with `?v=2.6.0`.
+- **Version**: assets are cache-busted with `?v=2.6.1`.
 
 ### 5. Photo Crop (manual editor and Auto Crop)
 - **Image pages only.** PDF pages never get a Crop button, and the Auto Crop button is hidden unless at least one image page exists (`CropState.countCroppable`). In a mixed upload it acts on image pages only. Label: `Auto Crop (N)`.
