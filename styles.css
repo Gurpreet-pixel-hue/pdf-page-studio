@@ -657,6 +657,91 @@ html, body {
   transform: translateX(-4px);
 }
 
+/* --------------------------------------------------------------------------
+   Documents / Pages View Toggle & Document Cards
+   -------------------------------------------------------------------------- */
+.grid-toolbar {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.view-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.view-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.view-toggle-btn.active {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.view-toggle-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Stacked-sheets effect: offset shadows follow the card's single light source */
+.doc-stack .card-thumbnail {
+  margin: 0 10px 10px 0;
+}
+
+.doc-stack.has-stack .card-thumbnail {
+  box-shadow:
+    4px 4px 0 0 var(--bg-surface),
+    4px 4px 0 1px var(--border-strong),
+    8px 8px 0 0 var(--bg-surface),
+    8px 8px 0 1px var(--border-strong);
+}
+
+.doc-count-badge {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--badge-text);
+  background-color: var(--badge-bg);
+  border-radius: var(--radius-xs);
+}
+
+.page-card.flash {
+  animation: cardFlash 1.4s ease-out;
+}
+
+@keyframes cardFlash {
+  0%, 60% { box-shadow: 0 0 0 3px var(--accent-terracotta), var(--shadow-card-hover); }
+  100% { box-shadow: var(--shadow-card); }
+}
+
 /* Card Header */
 .card-header {
   display: flex;
@@ -1680,6 +1765,16 @@ html, body {
 
 /* Mobile Screens (Width <= 768px: iPhone, Android, Mini-Tablets) */
 @media (max-width: 768px) {
+  .view-toggle {
+    width: 100%;
+  }
+
+  .view-toggle-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 12px;
+  }
+
   .top-bar {
     padding: 10px 14px;
   }

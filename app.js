@@ -17,6 +17,8 @@ const state = {
   pages: [], // Array of PageItem
   fileCounter: 0,
   draggedIndex: null,
+  draggedDocIndex: null,
+  viewMode: 'documents', // 'documents' (one card per source file) | 'pages' (one card per page)
   activeLightboxIndex: null,
   settings: {
     filename: 'Merged_Document.pdf',
@@ -41,6 +43,9 @@ const elements = {
   statPageCount: document.getElementById('stat-page-count'),
   statFileCount: document.getElementById('stat-file-count'),
   clearAllBtn: document.getElementById('clear-all-btn'),
+  viewDocsBtn: document.getElementById('view-docs-btn'),
+  viewPagesBtn: document.getElementById('view-pages-btn'),
+  gridInstructionText: document.getElementById('grid-instruction-text'),
   exportPdfBtn: document.getElementById('export-pdf-btn'),
   exportBtnText: document.getElementById('export-btn-text'),
   
@@ -276,13 +281,203 @@ function renderPageGrid() {
   elements.pageGridContainer.style.display = 'flex';
   elements.exportPdfBtn.disabled = false;
 
+  syncViewToggle();
+
   // Clear existing cards
   elements.pageGrid.innerHTML = '';
+
+  if (state.viewMode === 'documents') {
+    const documents = DocGroups.groupPagesIntoDocuments(state.pages);
+    documents.forEach((doc, docIndex) => {
+      elements.pageGrid.appendChild(createDocumentCardElement(doc, docIndex, documents.length));
+    });
+    return;
+  }
 
   // Render each page card
   state.pages.forEach((pageItem, index) => {
     const card = createPageCardElement(pageItem, index, totalPages);
     elements.pageGrid.appendChild(card);
+  });
+}
+
+/* ==========================================================================
+   Documents View (one card per source file)
+   ========================================================================== */
+
+function syncViewToggle() {
+  const docsMode = state.viewMode === 'documents';
+  elements.viewDocsBtn.classList.toggle('active', docsMode);
+  elements.viewDocsBtn.setAttribute('aria-pressed', String(docsMode));
+  elements.viewPagesBtn.classList.toggle('active', !docsMode);
+  elements.viewPagesBtn.setAttribute('aria-pressed', String(!docsMode));
+  elements.pageGrid.classList.toggle('is-documents', docsMode);
+  elements.gridInstructionText.textContent = docsMode
+    ? 'Drag or tap arrows to reorder whole documents'
+    : 'Drag or tap arrows to reorder • Numbers update in real-time';
+}
+
+function setViewMode(mode) {
+  if (state.viewMode === mode) return;
+  state.viewMode = mode;
+  renderPageGrid();
+}
+
+/**
+ * Switch to the page view and bring the first page of a document into view
+ */
+function showDocumentPages(startIndex) {
+  state.viewMode = 'pages';
+  renderPageGrid();
+  const card = elements.pageGrid.querySelector(`.page-card[data-index="${startIndex}"]`);
+  if (!card) return;
+  card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1400);
+}
+
+function createDocumentCardElement(doc, docIndex, totalDocs) {
+  const card = document.createElement('div');
+  card.className = 'page-card doc-card';
+  card.dataset.docIndex = docIndex;
+  card.draggable = true;
+  card.style.animationDelay = `${Math.min(docIndex * 35, 450)}ms`;
+
+  const first = doc.firstPage;
+  const typeLabel = doc.sourceType === 'pdf' ? 'PDF' : 'IMAGE';
+  const pagesWord = doc.count === 1 ? 'page' : 'pages';
+  const hasMany = doc.count > 1;
+  // The thumbnail badge already shows the page count; the meta line only adds what it can't
+  const detail = doc.partial
+    ? doc.rangeLabel
+    : (doc.sourceType === 'pdf' ? 'All pages' : `${Math.round(first.width)} × ${Math.round(first.height)} px`);
+
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="page-number-tag">DOC ${docIndex + 1}</span>
+      <span class="source-type-tag">${typeLabel}</span>
+    </div>
+
+    <div class="card-thumbnail-viewport doc-stack ${hasMany ? 'has-stack' : ''}">
+      <img src="${first.thumbnailDataUrl}"
+           alt="First page of ${escapeHtml(doc.fileName)}"
+           class="card-thumbnail"
+           style="transform: rotate(${first.rotation}deg);"
+           loading="lazy">
+      <span class="doc-count-badge">${doc.count} ${pagesWord}</span>
+    </div>
+
+    <div class="card-meta">
+      <div class="card-filename" title="${escapeHtml(doc.fileName)}">${escapeHtml(doc.fileName)}</div>
+      <div class="card-dimensions">${detail}</div>
+    </div>
+
+    <div class="card-actions">
+      <button class="action-icon-btn view-pages-btn" title="View pages of this document">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+        </svg>
+      </button>
+
+      <button class="action-icon-btn move-left-btn" title="Move document earlier" ${docIndex === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+
+      <button class="action-icon-btn move-right-btn" title="Move document later" ${docIndex === totalDocs - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+
+      <button class="action-icon-btn danger-btn delete-btn" title="Remove this document">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  `;
+
+  card.querySelector('.card-thumbnail-viewport').addEventListener('click', () => showDocumentPages(doc.start));
+
+  card.querySelector('.view-pages-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    showDocumentPages(doc.start);
+  });
+
+  card.querySelector('.move-left-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (docIndex > 0) reorderDocument(docIndex, docIndex - 1);
+  });
+
+  card.querySelector('.move-right-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (docIndex < totalDocs - 1) reorderDocument(docIndex, docIndex + 1);
+  });
+
+  card.querySelector('.delete-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeDocumentAt(docIndex, doc);
+  });
+
+  setupDocCardDragEvents(card, docIndex);
+  return card;
+}
+
+function reorderDocument(fromIndex, toIndex) {
+  state.pages = DocGroups.moveDocument(state.pages, fromIndex, toIndex);
+  renderPageGrid();
+  showToast(`Moved Document ${fromIndex + 1} to position ${toIndex + 1}`);
+}
+
+function removeDocumentAt(docIndex, doc) {
+  if (doc.count > 1 && !confirm(`Remove "${doc.fileName}" (${doc.count} pages)?`)) return;
+  state.pages = DocGroups.removeDocument(state.pages, docIndex);
+  renderPageGrid();
+  showToast(`Removed ${doc.fileName}`);
+}
+
+function setupDocCardDragEvents(card, docIndex) {
+  card.addEventListener('dragstart', (e) => {
+    state.draggedDocIndex = docIndex;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', docIndex);
+  });
+
+  card.addEventListener('dragend', () => {
+    state.draggedDocIndex = null;
+    card.classList.remove('dragging');
+    clearAllDragOverClasses();
+  });
+
+  card.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (state.draggedDocIndex === null || state.draggedDocIndex === docIndex) return;
+
+    const rect = card.getBoundingClientRect();
+    clearAllDragOverClasses();
+    card.classList.add(e.clientX < rect.left + rect.width / 2 ? 'drag-over-left' : 'drag-over-right');
+  });
+
+  card.addEventListener('dragleave', () => {
+    card.classList.remove('drag-over-left', 'drag-over-right');
+  });
+
+  card.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearAllDragOverClasses();
+
+    const fromIndex = state.draggedDocIndex;
+    if (fromIndex === null || fromIndex === docIndex) return;
+    reorderDocument(fromIndex, docIndex);
   });
 }
 
@@ -1059,6 +1254,8 @@ function initializeApp() {
   // Action Buttons
   elements.clearAllBtn.addEventListener('click', clearAll);
   elements.exportPdfBtn.addEventListener('click', exportMergedPdf);
+  elements.viewDocsBtn.addEventListener('click', () => setViewMode('documents'));
+  elements.viewPagesBtn.addEventListener('click', () => setViewMode('pages'));
 
   // Mobile Bottom Bar Actions
   if (elements.cameraInput) {

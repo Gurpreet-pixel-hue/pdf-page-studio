@@ -21,12 +21,14 @@ pdf-page-studio/
 │   ├── icon-512.png              # PWA manifest 512x512 icon
 │   └── icons.iconset/            # macOS ICNS iconset bundle
 ├── app.js                        # Core application logic, PDF-Lib compiler, drag-drop, watermarking, filters
+├── doc-groups.js                 # Pure helpers deriving the Documents view from state.pages (browser + node)
 ├── index.html                    # Semantic HTML5 layout, PWA meta, mobile dock, settings drawer, modals
 ├── styles.css                    # Warm creamy alabaster design system, spring animations, responsive queries
 ├── manifest.json                 # Web App Manifest for PWA installation (iOS/Android/macOS)
 ├── launch.sh                     # Zero-port launcher script for macOS / Linux
 ├── create_macos_app.py           # Native macOS Application bundle generator with custom ICNS
 ├── test_merge.js                 # Automated headless node verification test suite
+├── test_doc_groups.js            # Unit tests for Documents-view grouping, move and remove helpers
 └── .gitignore                    # Git ignore configuration (AGENTS.md is strictly tracked)
 ```
 
@@ -59,8 +61,15 @@ pdf-page-studio/
   - **iPhone & iPad (iOS/iPadOS Safari)**: Illustrated 3-step guide for Safari Share $\rightarrow$ Add to Home Screen.
   - **Mac Desktop**: Safari Add to Dock + 1-click download of native `.webloc` shortcut file.
 - **Pristine Header**: Header typography kept clean and uncluttered (`PDF PAGE STUDIO`), eliminating version numbers from the visual brand row.
-- **Version Query Strings**: `styles.css?v=2.3.0`, `app.js?v=2.3.0`, `manifest.json?v=2.3.0` ensure immediate CDN and local browser cache bypass.
+- **Version Query Strings**: `styles.css?v=2.4.0`, `app.js?v=2.4.0`, `doc-groups.js?v=2.4.0`, `manifest.json?v=2.4.0` ensure immediate CDN and local browser cache bypass.
 - **Cache-Control Meta Directives**: `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` forces dynamic revalidation of the HTML document shell.
+
+### 4. Documents View & Pages View
+- **Documents view (default)**: one card per source file, so multi-PDF uploads can be reordered or removed as whole documents. Each card shows the first page as a stacked-sheets thumbnail, a page-count badge, left/right arrows, delete, and "view pages".
+- **Pages view**: the per-page grid, for moving individual pages between documents. Toggle via the `Documents | Pages` segmented control (`#view-docs-btn`, `#view-pages-btn`) in the grid toolbar; the choice persists for the session (`state.viewMode`).
+- **Single source of truth**: both views edit `state.pages`. A document is a run of consecutive pages sharing the same `sourceFile` object (identity, not filename). Pulling a page from file A into the middle of file B splits both into separate cards with range labels such as `pp. 1–2 of 5`, so the Documents view always mirrors the real export order.
+- **Logic location**: `doc-groups.js` exports `groupPagesIntoDocuments`, `moveDocument`, `removeDocument` (pure, non-mutating, unit-tested in `test_doc_groups.js`). DOM rendering lives in `app.js` (`createDocumentCardElement`, `renderPageGrid`).
+- **Version**: assets are cache-busted with `?v=2.4.0`.
 
 ---
 
@@ -75,6 +84,7 @@ pdf-page-studio/
 ## Verification & Quality Assurance Commands
 - Syntax Validation: `node --check app.js`
 - Test Suite (Page insertion, reordering, rotation, deletion, watermarking): `node test_merge.js`
+- Documents-view helpers: `node test_doc_groups.js` (or `npm test` for both)
 - Cloud CDN Health Check: `curl -sI https://gurpreet-pixel-hue.github.io/pdf-page-studio/ | head -n 5`
 - Port Check (Must show no open processes): `lsof -iTCP:8000 -iTCP:3000 -iTCP:5173 -iTCP:8080`
 

@@ -15,15 +15,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PDF Studio">
-  <link rel="manifest" href="manifest.json?v=2.3.0">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.3.0">
+  <link rel="manifest" href="manifest.json?v=2.4.0">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.4.0">
 
   <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2.3.0">
+  <link rel="stylesheet" href="styles.css?v=2.4.0">
   <script src="vendor/pdf-lib.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
 </head>
@@ -219,7 +219,25 @@
         <div class="grid-toolbar">
           <div class="grid-instruction">
             <span class="badge-dot"></span>
-            <span>Drag or tap arrows to reorder • Numbers update in real-time</span>
+            <span id="grid-instruction-text">Drag or tap arrows to reorder whole documents</span>
+          </div>
+          <div class="view-toggle" role="group" aria-label="Grid view">
+            <button type="button" class="view-toggle-btn active" id="view-docs-btn" aria-pressed="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <span>Documents</span>
+            </button>
+            <button type="button" class="view-toggle-btn" id="view-pages-btn" aria-pressed="false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+              </svg>
+              <span>Pages</span>
+            </button>
           </div>
           <div class="grid-quick-add">
             <label class="btn btn-sm btn-secondary" for="file-input">
@@ -478,7 +496,7 @@
         <div class="install-modal-header">
           <div class="install-header-left">
             <div class="install-app-icon-preview">
-              <img src="assets/icon-192.png?v=2.3.0" alt="PDF Studio Icon" width="38" height="38">
+              <img src="assets/icon-192.png?v=2.4.0" alt="PDF Studio Icon" width="38" height="38">
             </div>
             <div>
               <h3 class="install-modal-title">Add PDF Page Studio</h3>
@@ -566,6 +584,7 @@
 
   </div>
 
-  <script src="app.js?v=2.3.0"></script>
+  <script src="doc-groups.js?v=2.4.0"></script>
+  <script src="app.js?v=2.4.0"></script>
 </body>
 </html>
