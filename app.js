@@ -318,6 +318,41 @@ async function parseImageFile(file) {
 /**
  * Synchronize the grid with state.pages
  */
+/* ---- Grid rendering: keep what the user already sees --------------------------------
+   Every edit re-renders the grid. Rebuilding every card from scratch made each move
+   look like a page reload: all cards replayed their entrance animation, every image
+   was re-decoded (blank flash) and the scroll position could jump. So a render keeps
+   the thumbnail elements it already has, animates in only cards it has never shown,
+   glides moved cards to their new place (FLIP), and restores the scroll position. */
+
+const thumbCache = new Map();   // card key -> { img, src }: decoded thumbnail elements, reused across renders
+let shownKeys = new Set();      // card keys currently on screen
+let shownView = null;           // view the keys belong to
+
+const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+function getScrollParent(el) {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight) return node;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+/** Swap a freshly built card's thumbnail for the one already decoded for that card, when it shows the same image. */
+function adoptThumbnail(card, key) {
+  const fresh = card.querySelector('img.card-thumbnail');
+  if (!fresh) return;
+  const src = fresh.getAttribute('src');
+  const hit = thumbCache.get(key);
+  if (hit && hit.src === src) {
+    hit.img.alt = fresh.alt;
+    hit.img.style.transform = fresh.style.transform;
+    fresh.replaceWith(hit.img);
+  } else {
+    thumbCache.set(key, { img: fresh, src });
+  }
+}
+
 function renderPageGrid() {
   const totalPages = state.pages.length;
   elements.statPageCount.textContent = totalPages;
@@ -332,6 +367,8 @@ function renderPageGrid() {
     elements.emptyState.style.display = 'flex';
     elements.pageGridContainer.style.display = 'none';
     elements.exportPdfBtn.disabled = true;
+    thumbCache.clear();
+    shownKeys = new Set();
     return;
   }
 
@@ -341,22 +378,70 @@ function renderPageGrid() {
 
   syncViewToggle();
 
-  // Clear existing cards
-  elements.pageGrid.innerHTML = '';
+  const grid = elements.pageGrid;
+  const view = state.viewMode;
+  const sameView = view === shownView;
 
-  if (state.viewMode === 'documents') {
+  // Where everything is now, and where the user is scrolled to.
+  const scroller = getScrollParent(grid);
+  const scrollTop = scroller.scrollTop;
+  const firstRects = new Map();
+  if (sameView) {
+    [...grid.children].forEach((card) => { if (card.dataset.key) firstRects.set(card.dataset.key, card.getBoundingClientRect()); });
+  }
+  grid.style.minHeight = `${grid.offsetHeight}px`; // an emptied grid must not collapse and clamp the scroll position
+
+  grid.innerHTML = '';
+  const cards = [];
+  if (view === 'documents') {
     const documents = DocGroups.groupPagesIntoDocuments(state.pages);
     documents.forEach((doc, docIndex) => {
-      elements.pageGrid.appendChild(createDocumentCardElement(doc, docIndex, documents.length));
+      const card = createDocumentCardElement(doc, docIndex, documents.length);
+      card.dataset.key = `d:${doc.firstPage.id}`;
+      cards.push(card);
     });
-    return;
+  } else {
+    state.pages.forEach((pageItem, index) => {
+      const card = createPageCardElement(pageItem, index, totalPages);
+      card.dataset.key = `p:${pageItem.id}`;
+      cards.push(card);
+    });
   }
 
-  // Render each page card
-  state.pages.forEach((pageItem, index) => {
-    const card = createPageCardElement(pageItem, index, totalPages);
-    elements.pageGrid.appendChild(card);
+  const keys = new Set(cards.map((card) => card.dataset.key));
+  let entering = 0;
+  cards.forEach((card) => {
+    const key = card.dataset.key;
+    adoptThumbnail(card, key);
+    if (sameView && shownKeys.has(key)) {
+      card.style.animation = 'none'; // already on screen: no entrance animation
+    } else {
+      card.style.animationDelay = `${Math.min(entering++ * 35, 450)}ms`;
+    }
+    grid.appendChild(card);
   });
+  for (const key of [...thumbCache.keys()]) if (!keys.has(key)) thumbCache.delete(key);
+  shownKeys = keys;
+  shownView = view;
+
+  grid.style.minHeight = '';
+  scroller.scrollTop = scrollTop;
+
+  // Glide cards that changed place from where they were to where they are.
+  if (sameView && !prefersReducedMotion()) {
+    cards.forEach((card) => {
+      const before = firstRects.get(card.dataset.key);
+      if (!before) return;
+      const after = card.getBoundingClientRect();
+      const dx = before.left - after.left;
+      const dy = before.top - after.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      card.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+        { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+      );
+    });
+  }
 }
 
 /* ==========================================================================
