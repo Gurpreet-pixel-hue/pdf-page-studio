@@ -32,7 +32,7 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.5.0';
+const ASSET_VERSION = '2.6.0';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 
@@ -517,6 +517,9 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
 
       ${croppable ? cropButtonHtml(first) : ''}
 
+      ${hasMany ? `<button class="action-icon-btn split-btn" title="Split this document into two parts">${SPLIT_ICON}</button>` : ''}
+      ${doc.canJoinNext ? `<button class="action-icon-btn join-btn" title="Join with the next part">${JOIN_ICON}</button>` : ''}
+
       <button class="action-icon-btn move-left-btn" title="Move document earlier" ${docIndex === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"></polyline>
@@ -553,6 +556,22 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
     });
   }
 
+  const splitBtn = card.querySelector('.split-btn');
+  if (splitBtn) {
+    splitBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSplitDialog(docIndex);
+    });
+  }
+
+  const joinBtn = card.querySelector('.join-btn');
+  if (joinBtn) {
+    joinBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      joinDocumentParts(docIndex);
+    });
+  }
+
   card.querySelector('.move-left-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     if (docIndex > 0) reorderDocument(docIndex, docIndex - 1);
@@ -570,6 +589,34 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
 
   setupDocCardDragEvents(card, docIndex);
   return card;
+}
+
+const SPLIT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>';
+const JOIN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M6 21V9a9 9 0 0 0 9 9"></path></svg>';
+
+/** Ask where to cut a multi-page document, then split it into two parts that move independently. */
+function openSplitDialog(docIndex) {
+  const doc = DocGroups.groupPagesIntoDocuments(state.pages)[docIndex];
+  if (!doc || doc.count < 2) return;
+  const pages = state.pages.slice(doc.start, doc.end);
+  SplitDialog.open({
+    title: `Split ${doc.fileName}`,
+    pages,
+    preview: (n) => DocGroups.groupPagesIntoDocuments(DocGroups.splitDocument(pages, 0, n)).map((part) => part.rangeLabel),
+    onApply: (n) => {
+      state.pages = DocGroups.splitDocument(state.pages, docIndex, n);
+      renderPageGrid();
+      showToast(`Split ${doc.fileName} after page ${n}. Move each part on its own.`);
+    }
+  });
+}
+
+/** Put a part back together with the part that continues it. */
+function joinDocumentParts(docIndex) {
+  const before = DocGroups.groupPagesIntoDocuments(state.pages)[docIndex];
+  state.pages = DocGroups.joinDocuments(state.pages, docIndex);
+  renderPageGrid();
+  if (before) showToast(`Joined the parts of ${before.fileName}`);
 }
 
 function reorderDocument(fromIndex, toIndex) {
@@ -852,8 +899,7 @@ function clearAllDragOverClasses() {
  */
 function reorderPage(fromIndex, toIndex) {
   if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-  const item = state.pages.splice(fromIndex, 1)[0];
-  state.pages.splice(toIndex, 0, item);
+  state.pages = DocGroups.movePage(state.pages, fromIndex, toIndex);
   renderPageGrid();
   showToast(`Moved Page ${fromIndex + 1} to Page ${toIndex + 1}`);
 }
@@ -862,9 +908,7 @@ function reorderPage(fromIndex, toIndex) {
  * Swap two adjacent pages
  */
 function swapPages(indexA, indexB) {
-  const temp = state.pages[indexA];
-  state.pages[indexA] = state.pages[indexB];
-  state.pages[indexB] = temp;
+  state.pages = DocGroups.movePage(state.pages, indexA, indexB);
   renderPageGrid();
 }
 
@@ -872,7 +916,7 @@ function swapPages(indexA, indexB) {
  * Remove an individual page
  */
 function removePage(index) {
-  const removed = state.pages.splice(index, 1)[0];
+  state.pages = DocGroups.removePage(state.pages, index);
   renderPageGrid();
   showToast(`Removed Page ${index + 1}`);
 }

@@ -4,7 +4,7 @@
  */
 
 const assert = require('assert');
-const { groupPagesIntoDocuments, moveDocument, removeDocument } = require('./doc-groups.js');
+const { groupPagesIntoDocuments, moveDocument, removeDocument, splitDocument, joinDocuments, movePage, removePage } = require('./doc-groups.js');
 
 const fileA = { name: 'A.pdf' };
 const fileB = { name: 'B.pdf' };
@@ -108,6 +108,99 @@ function threeDocs() {
   assert.deepStrictEqual(labels(out), ['B.pdf:0', 'scan.png:0']);
   assert.strictEqual(pages.length, 4, 'input is not mutated');
   assert.deepStrictEqual(labels(removeDocument(pages, 7)), labels(pages), 'out-of-range is a no-op');
+}
+
+// --- splitDocument / joinDocuments: a PDF can be cut into parts that move independently ---
+const fiveA = () => [0, 1, 2, 3, 4].map(i => pdfPage(fileA, i, 5));
+{
+  const pages = fiveA();
+  const out = splitDocument(pages, 0, 2);
+  const g = groupPagesIntoDocuments(out);
+  assert.deepStrictEqual(g.map(d => [d.start, d.end, d.rangeLabel]), [[0, 2, 'pp. 1–2 of 5'], [2, 5, 'pp. 3–5 of 5']]);
+  assert.ok(g.every(d => d.partial), 'both parts are partial documents');
+  assert.strictEqual(pages.some(p => p.splitBefore), false, 'input pages are not mutated');
+  assert.strictEqual(out[1], pages[1], 'pages other than the two part starts keep their identity');
+  assert.ok(out[0].splitBefore && out[2].splitBefore, 'both parts are marked as starting a document');
+  assert.deepStrictEqual(labels(out), labels(pages), 'a split does not reorder anything');
+}
+{
+  // parts move independently: part B to the front
+  const parts = splitDocument(fiveA(), 0, 2);
+  const moved = moveDocument(parts, 1, 0);
+  assert.deepStrictEqual(labels(moved), ['A.pdf:2', 'A.pdf:3', 'A.pdf:4', 'A.pdf:0', 'A.pdf:1']);
+  assert.deepStrictEqual(groupPagesIntoDocuments(moved).map(d => d.rangeLabel), ['pp. 3–5 of 5', 'pp. 1–2 of 5']);
+}
+{
+  // a part can be split again, giving three parts
+  const twice = splitDocument(splitDocument(fiveA(), 0, 2), 1, 1);
+  assert.deepStrictEqual(groupPagesIntoDocuments(twice).map(d => d.rangeLabel), ['pp. 1–2 of 5', 'p. 3 of 5', 'pp. 4–5 of 5']);
+}
+{
+  // other documents around the split are left alone
+  const pages = [pdfPage(fileB, 0, 1), ...fiveA(), imgPage(img1)];
+  const out = splitDocument(pages, 1, 3);
+  assert.deepStrictEqual(groupPagesIntoDocuments(out).map(d => [d.fileName, d.count]), [['B.pdf', 1], ['A.pdf', 3], ['A.pdf', 2], ['scan.png', 1]]);
+}
+{
+  const pages = fiveA();
+  for (const [g, n] of [[0, 0], [0, 5], [0, 6], [0, -1], [0, 1.5], [1, 2], [-1, 2], [0, NaN]]) {
+    const out = splitDocument(pages, g, n);
+    assert.deepStrictEqual(groupPagesIntoDocuments(out).length, 1, `split (${g}, ${n}) is a no-op`);
+  }
+  assert.strictEqual(groupPagesIntoDocuments(splitDocument([imgPage(img1)], 0, 1)).length, 1, 'a single page cannot be split');
+}
+{
+  const parts = splitDocument(fiveA(), 0, 2);
+  const g = groupPagesIntoDocuments(parts);
+  assert.deepStrictEqual(g.map(d => d.canJoinNext), [true, false], 'a part can rejoin the part that continues it');
+  const joined = joinDocuments(parts, 0);
+  const jg = groupPagesIntoDocuments(joined);
+  assert.strictEqual(jg.length, 1);
+  assert.strictEqual(jg[0].rangeLabel, '5 pages');
+  assert.strictEqual(parts[2].splitBefore, true, 'input is not mutated');
+  assert.strictEqual(joined[2].splitBefore, undefined, 'joining clears the cut');
+}
+{
+  // not joinable when the neighbour is not the direct continuation
+  const parts = splitDocument(fiveA(), 0, 2);
+  const swapped = moveDocument(parts, 1, 0); // B then A
+  assert.deepStrictEqual(groupPagesIntoDocuments(swapped).map(d => d.canJoinNext), [false, false]);
+  assert.strictEqual(groupPagesIntoDocuments(joinDocuments(swapped, 0)).length, 2, 'join is a no-op when not a continuation');
+  const three = splitDocument(splitDocument(fiveA(), 0, 2), 1, 1);
+  const gaps = moveDocument(three, 1, 2); // A1-2, A4-5, A3
+  assert.deepStrictEqual(groupPagesIntoDocuments(gaps).map(d => d.canJoinNext), [false, false, false]);
+  const other = [...splitDocument(fiveA(), 0, 2).slice(0, 2), pdfPage(fileB, 0, 1), ...splitDocument(fiveA(), 0, 2).slice(2)];
+  assert.deepStrictEqual(groupPagesIntoDocuments(other).map(d => d.canJoinNext), [false, false, false], 'a different file in between blocks joining');
+  assert.strictEqual(groupPagesIntoDocuments(joinDocuments(fiveA(), 0)).length, 1, 'joining an unsplit document is a no-op');
+  assert.strictEqual(groupPagesIntoDocuments(joinDocuments(parts, 5)).length, 2, 'out-of-range join is a no-op');
+}
+
+// --- movePage / removePage keep a cut where the part really begins ---
+{
+  const parts = splitDocument(fiveA(), 0, 2); // a0 a1 | a2* a3 a4
+  const out = movePage(parts, 2, 4); // the first page of part B moves to the end
+  assert.deepStrictEqual(labels(out), ['A.pdf:0', 'A.pdf:1', 'A.pdf:3', 'A.pdf:4', 'A.pdf:2']);
+  assert.deepStrictEqual(groupPagesIntoDocuments(out).map(d => d.count), [2, 3], 'the cut moves to the next page, parts stay separate');
+  assert.strictEqual(out[4].splitBefore, undefined, 'the moved page does not carry the cut');
+  assert.strictEqual(parts[2].splitBefore, true, 'input is not mutated');
+}
+{
+  const parts = splitDocument(fiveA(), 0, 2);
+  const out = removePage(parts, 2);
+  assert.deepStrictEqual(labels(out), ['A.pdf:0', 'A.pdf:1', 'A.pdf:3', 'A.pdf:4']);
+  assert.deepStrictEqual(groupPagesIntoDocuments(out).map(d => d.count), [2, 2], 'removing the first page of a part keeps the parts separate');
+  const lastFlagged = [pdfPage(fileA, 0, 2), { ...pdfPage(fileA, 1, 2), splitBefore: true }, pdfPage(fileB, 0, 1)];
+  assert.deepStrictEqual(groupPagesIntoDocuments(removePage(lastFlagged, 1)).map(d => d.fileName), ['A.pdf', 'B.pdf']);
+}
+{
+  const pages = fiveA();
+  const out = movePage(pages, 0, 3);
+  assert.deepStrictEqual(labels(out), ['A.pdf:1', 'A.pdf:2', 'A.pdf:3', 'A.pdf:0', 'A.pdf:4']);
+  assert.strictEqual(out[3], pages[0], 'pages without a cut are not copied');
+  assert.deepStrictEqual(labels(movePage(pages, 2, 2)), labels(pages), 'same index is a no-op');
+  assert.deepStrictEqual(labels(movePage(pages, -1, 2)), labels(pages), 'out-of-range is a no-op');
+  assert.deepStrictEqual(labels(removePage(pages, 9)), labels(pages), 'out-of-range remove is a no-op');
+  assert.strictEqual(pages.length, 5, 'input is not mutated');
 }
 
 console.log('doc-groups: all assertions passed');

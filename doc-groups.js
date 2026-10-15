@@ -2,7 +2,9 @@
  * PDF Page Studio - Document grouping helpers
  * Pure functions that derive the "Documents" view from the flat page list.
  * state.pages stays the single source of truth; a document is a run of
- * consecutive pages that share the same source file.
+ * consecutive pages that share the same source file. A page flagged
+ * `splitBefore` starts a new document even when the page before it comes from
+ * the same file, which is how a PDF is cut into parts that move independently.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -37,7 +39,7 @@
     while (start < pages.length) {
       const file = pages[start].sourceFile;
       let end = start + 1;
-      while (end < pages.length && pages[end].sourceFile === file) end++;
+      while (end < pages.length && pages[end].sourceFile === file && !pages[end].splitBefore) end++;
 
       const run = pages.slice(start, end);
       const first = run[0];
@@ -53,7 +55,82 @@
       });
       start = end;
     }
+    groups.forEach((group, i) => {
+      const next = groups[i + 1];
+      const last = pages[group.end - 1];
+      group.canJoinNext = !!next
+        && next.firstPage.splitBefore === true
+        && next.firstPage.sourceFile === group.firstPage.sourceFile
+        && group.sourceType === 'pdf'
+        && next.firstPage.sourcePageIndex === last.sourcePageIndex + 1;
+    });
     return groups;
+  }
+
+  const withoutCut = (page) => {
+    const copy = Object.assign({}, page);
+    delete copy.splitBefore;
+    return copy;
+  };
+  const inRange = (i, length) => Number.isInteger(i) && i >= 0 && i < length;
+
+  /**
+   * Cut the document at groupIndex after its first `firstPartCount` pages.
+   * Returns a new list. Both parts get a flagged first page: the flag marks
+   * where a document starts, and part A needs one too, otherwise moving part B
+   * in front of it would leave the two touching and merge them again. Only
+   * those two pages are copied; every other page keeps its identity.
+   */
+  function splitDocument(pages, groupIndex, firstPartCount) {
+    const groups = groupPagesIntoDocuments(pages);
+    if (!inRange(groupIndex, groups.length)) return pages.slice();
+    const group = groups[groupIndex];
+    if (!Number.isInteger(firstPartCount) || firstPartCount < 1 || firstPartCount >= group.count) return pages.slice();
+    const out = pages.slice();
+    [group.start, group.start + firstPartCount].forEach((at) => {
+      out[at] = Object.assign({}, pages[at], { splitBefore: true });
+    });
+    return out;
+  }
+
+  /** Remove the cut between the document at groupIndex and the part that continues it (the first part keeps its start marker). */
+  function joinDocuments(pages, groupIndex) {
+    const groups = groupPagesIntoDocuments(pages);
+    if (!inRange(groupIndex, groups.length) || !groups[groupIndex].canJoinNext) return pages.slice();
+    const out = pages.slice();
+    const at = groups[groupIndex].end;
+    out[at] = withoutCut(pages[at]);
+    return out;
+  }
+
+  /**
+   * Take the page at `index` out of the list. A page that starts a part hands
+   * its cut to the page after it (when that comes from the same file), so
+   * removing or moving it never merges two parts by accident.
+   */
+  function detach(pages, index) {
+    const rest = pages.slice();
+    let page = rest.splice(index, 1)[0];
+    if (page.splitBefore) {
+      const next = rest[index];
+      if (next && next.sourceFile === page.sourceFile) rest[index] = Object.assign({}, next, { splitBefore: true });
+      page = withoutCut(page);
+    }
+    return { rest, page };
+  }
+
+  /** Move one page, keeping cuts where the parts really begin. Same semantics as splicing out and back in. */
+  function movePage(pages, fromIndex, toIndex) {
+    if (fromIndex === toIndex || !inRange(fromIndex, pages.length) || !Number.isInteger(toIndex) || toIndex < 0) return pages.slice();
+    const { rest, page } = detach(pages, fromIndex);
+    rest.splice(toIndex, 0, page);
+    return rest;
+  }
+
+  /** Remove one page, keeping cuts where the parts really begin. */
+  function removePage(pages, index) {
+    if (!inRange(index, pages.length)) return pages.slice();
+    return detach(pages, index).rest;
   }
 
   /**
@@ -83,5 +160,5 @@
     return pages.slice(0, start).concat(pages.slice(end));
   }
 
-  return { groupPagesIntoDocuments, moveDocument, removeDocument };
+  return { groupPagesIntoDocuments, moveDocument, removeDocument, splitDocument, joinDocuments, movePage, removePage };
 }));
