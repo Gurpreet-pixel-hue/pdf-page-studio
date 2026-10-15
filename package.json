@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "bash ./launch.sh",
-    "test": "node test_merge.js && node test_doc_groups.js && node test_crop_geometry.js && node test_image_normalize.js && node test_crop_state.js && node test_page_detect.js && node test_file_name.js && node test_page_finder.js && node test_section_detect.js",
+    "test": "node test_merge.js && node test_doc_groups.js && node test_crop_geometry.js && node test_image_normalize.js && node test_crop_state.js && node test_page_detect.js && node test_file_name.js && node test_page_finder.js && node test_section_detect.js && node test_index_scan.js",
     "typecheck": "node --check app.js",
     "rebuild-app": "python3 create_macos_app.py",
     "ui-check": "node tools/ui-check.js"
