@@ -24,6 +24,7 @@ All rendering, page extraction, image encoding, and PDF compilation occur **100%
   - Quick Move Left (←) and Move Right (→) buttons.
   - Delete individual pages.
   - Fullscreen Lightbox Modal to inspect image resolution and text sharpness.
+- **Crop Photographed Pages**: manual four-corner crop with perspective correction on every photo, and Auto Crop, which finds the top sheet with a small on-device model (85% usable on the maintainer's own test photos, see models/MODEL_CARD.md; every result can be edited).
 - **Batch Sorting Actions**:
   - Reset to original upload order.
   - Sort alphabetically by file name (A-Z or Z-A).
@@ -57,8 +58,13 @@ cd pdf-page-studio
 ### Automated Tests
 Run the headless Node.js verification test suite:
 ```bash
-node test_merge.js
+npm test
 ```
+
+Browser checks (Node 22+ and Chrome): `npm run ui-check -- tools/ui/smoke.js`.
+
+### Third-party code
+PDF.js and pdf-lib (bundled). ONNX Runtime Web 1.23.2 and a minimal ONNX Runtime wasm build from `scanic-ml` (MIT), loaded on first use of Auto Crop. The corner model is derived from DocCornerNet (MIT); see `models/MODEL_CARD.md` for data and licences.
 
 ---
 

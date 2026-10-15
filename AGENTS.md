@@ -22,6 +22,18 @@ pdf-page-studio/
 │   └── icons.iconset/            # macOS ICNS iconset bundle
 ├── app.js                        # Core application logic, PDF-Lib compiler, drag-drop, watermarking, filters
 ├── doc-groups.js                 # Pure helpers deriving the Documents view from state.pages (browser + node)
+├── crop-geometry.js              # Pure quad maths: ordering, validity, IoU, homography, perspective warp (browser + node)
+├── image-normalize.js            # Pure photo helpers: EXIF orientation, HEIC detection, size caps, direct-embed rule
+├── crop-state.js                 # Pure rules for Auto Crop targets and how a detection is recorded on a page
+├── crop-editor.js                # Manual four-corner crop modal (drag, loupe, keyboard, focus trap)
+├── page-detect.js                # Corner-model pre/post-processing and the lazy ONNX Runtime Web detector
+├── models/
+│   ├── doccorner-ft.ort          # Fine-tuned page corner model (1.98 MB, ORT format)
+│   └── MODEL_CARD.md             # Data, metrics with baselines, limits, licences, how to retrain
+├── vendor/ort/                   # onnxruntime-web 1.23.2 JS + a minimal 1.5 MB wasm (see its README)
+├── tools/
+│   ├── ui-check.js, ui-harness.js, ui/   # Headless Chrome scenario runner (Node 22+) and scenarios
+│   └── model/                    # Fine-tune, ONNX export and reference scripts (need the private ground truth)
 ├── index.html                    # Semantic HTML5 layout, PWA meta, mobile dock, settings drawer, modals
 ├── styles.css                    # Warm creamy alabaster design system, spring animations, responsive queries
 ├── manifest.json                 # Web App Manifest for PWA installation (iOS/Android/macOS)
@@ -29,6 +41,8 @@ pdf-page-studio/
 ├── create_macos_app.py           # Native macOS Application bundle generator with custom ICNS
 ├── test_merge.js                 # Automated headless node verification test suite
 ├── test_doc_groups.js            # Unit tests for Documents-view grouping, move and remove helpers
+├── test_crop_geometry.js, test_image_normalize.js, test_crop_state.js, test_page_detect.js   # Unit tests for the crop modules
+├── docs/device-test-checklist.md # Real-device checks (iPhone Safari/Chrome, Android) for photo upload and crop
 └── .gitignore                    # Git ignore configuration (AGENTS.md is strictly tracked)
 ```
 
@@ -61,7 +75,7 @@ pdf-page-studio/
   - **iPhone & iPad (iOS/iPadOS Safari)**: Illustrated 3-step guide for Safari Share $\rightarrow$ Add to Home Screen.
   - **Mac Desktop**: Safari Add to Dock + 1-click download of native `.webloc` shortcut file.
 - **Pristine Header**: Header typography kept clean and uncluttered (`PDF PAGE STUDIO`), eliminating version numbers from the visual brand row.
-- **Version Query Strings**: `styles.css?v=2.4.0`, `app.js?v=2.4.0`, `doc-groups.js?v=2.4.0`, `manifest.json?v=2.4.0` ensure immediate CDN and local browser cache bypass.
+- **Version Query Strings**: `styles.css?v=2.5.0`, `app.js?v=2.5.0`, `doc-groups.js?v=2.5.0`, `page-detect.js?v=2.5.0`, `manifest.json?v=2.5.0` ensure immediate CDN and local browser cache bypass.
 - **Cache-Control Meta Directives**: `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` forces dynamic revalidation of the HTML document shell.
 
 ### 4. Documents View & Pages View
@@ -69,7 +83,18 @@ pdf-page-studio/
 - **Pages view**: the per-page grid, for moving individual pages between documents. Toggle via the `Documents | Pages` segmented control (`#view-docs-btn`, `#view-pages-btn`) in the grid toolbar; the choice persists for the session (`state.viewMode`).
 - **Single source of truth**: both views edit `state.pages`. A document is a run of consecutive pages sharing the same `sourceFile` object (identity, not filename). Pulling a page from file A into the middle of file B splits both into separate cards with range labels such as `pp. 1–2 of 5`, so the Documents view always mirrors the real export order.
 - **Logic location**: `doc-groups.js` exports `groupPagesIntoDocuments`, `moveDocument`, `removeDocument` (pure, non-mutating, unit-tested in `test_doc_groups.js`). DOM rendering lives in `app.js` (`createDocumentCardElement`, `renderPageGrid`).
-- **Version**: assets are cache-busted with `?v=2.4.0`.
+- **Version**: assets are cache-busted with `?v=2.5.0`.
+
+### 5. Photo Crop (manual editor and Auto Crop)
+- **Image pages only.** PDF pages never get a Crop button, and the Auto Crop button is hidden unless at least one image page exists (`CropState.countCroppable`). In a mixed upload it acts on image pages only. Label: `Auto Crop (N)`.
+- **Ingestion** (`parseImageFile`): EXIF orientation is applied by decoding through an image element, and a working copy (long edge <= 2000 px, `WORKING_MAX_EDGE`) is used for thumbnails, the editor and detection. The full-resolution `fullBlob` is kept for export. **HEIC is not decoded**: iOS (Safari and Chrome) converts to JPEG at pick time, so the file input's `accept` list omits HEIC; a HEIC file that still reaches the page (desktop drag and drop) adds no page and shows a toast explaining what to do. `heic2any` was removed because it fails on current iPhone HEIC files.
+- **Data**: each image page has `cropQuad` (normalised TL, TR, BR, BL), `cropState` (`none|auto|manual|needs-review`), `cropConfidence`, `previewUrl`.
+- **Export**: `embedImagePage` embeds original bytes only when nothing changes (`ImageNormalize.canEmbedOriginalDirectly`); otherwise `renderImagePageCanvas` applies orientation, a pure-JS perspective warp (`CropGeometry.warpPerspective`), then rotation. Canvases are capped at `MAX_EXPORT_PIXELS` (12,000,000).
+- **Editor** (`crop-editor.js`): four draggable corners, loupe, arrow-key nudging, Esc, focus trap. Apply is disabled for non-convex or tiny quads. It starts from the stored crop, else a 10% inset.
+- **Auto Crop** (`runAutoCrop`, `page-detect.js`): a small corner model (`models/doccorner-ft.ort`) run with ONNX Runtime Web on the 2000 px working copy, on the main thread, loaded on first click (about 3.5 MB: model plus 1.5 MB wasm; about 25 ms per photo). The detection becomes the crop (`auto`, shown with an Auto badge) when `confidence >= 0.6`; weaker or invalid results are left uncropped and flagged `needs-review`. A page whose detection throws is left unchanged; if every page fails the toast says Auto Crop is unavailable.
+- **What `cropConfidence` means**: the model's "a page is present" score. It does NOT predict whether the crop is exact (the CV run did not record per-photo scores), so a wrong crop can still be marked `auto`; the user edits it with Crop.
+- **Measured quality** (`models/MODEL_CARD.md`): 5-fold CV on the owner's 41 pile photos, each scored by a model that never saw it: 35/41 usable (85%, 95% CI 72-93%), IoU 0.936 against the manual crops, versus 22/41 (54%) pretrained and IoU 0.744 for a fixed 10% inset. "Usable" = at most 1% of the page ink cut off, at least 90% of the manual crop covered, at most 10% outside it. The 90% goal was **not reached**. All 41 photos share one desk and lighting; other setups are unmeasured (an external Mendeley test of 153 photos without piles gives IoU 0.897 versus 0.870 pretrained). The classical OpenCV detector was tried first (IoU 0.686, worse than a fixed inset) and dropped.
+- **Tests**: `npm test` (pure modules, including `test_page_detect.js`); `npm run ui-check -- tools/ui/<scenario>.js` for `smoke`, `ingest`, `export`, `editor`, `detect`, `autocrop`. `detect.js` checks browser output against Python reference quads when `UI_CHECK_FIXTURES` has `ref_quads.json` and photos.
 
 ---
 
@@ -84,7 +109,9 @@ pdf-page-studio/
 ## Verification & Quality Assurance Commands
 - Syntax Validation: `node --check app.js`
 - Test Suite (Page insertion, reordering, rotation, deletion, watermarking): `node test_merge.js`
-- Documents-view helpers: `node test_doc_groups.js` (or `npm test` for both)
+- All unit suites: `npm test`
+- Browser scenarios: `npm run ui-check -- tools/ui/<scenario>.js` (Node 22+, Chrome; serves on a random local port for the run only)
+- Real-device checks: `docs/device-test-checklist.md`
 - Cloud CDN Health Check: `curl -sI https://gurpreet-pixel-hue.github.io/pdf-page-studio/ | head -n 5`
 - Port Check (Must show no open processes): `lsof -iTCP:8000 -iTCP:3000 -iTCP:5173 -iTCP:8080`
 
