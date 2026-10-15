@@ -2335,6 +2335,17 @@ async function scenario() {
   check('no more-pages chips when the contents photo fixed the count', $('finder-chips').children.length === 0);
   PageFinderUI.close();
 
+  // 7a. A contents photo whose table could not be read: the user types the entry count.
+  await run({ pages: 12, high: [2, 4, 6, 9], index: { count: 0, cropUrls: [], warning: 'The table in this photo could not be read. Enter the number of entries yourself.' } });
+  check('an unreadable photo shows its warning', /could not be read/.test(warnings()), warnings());
+  check('the entries field is visible and empty so the count can be typed', !$('finder-entries-field').hidden && $('finder-entries-input').value === '');
+  check('until then the clear headings are listed (4 rows, remove buttons shown)', rows().length === 4 && !!rows()[0].querySelector('.finder-remove'), String(rows().length));
+  typeInto($('finder-entries-input'), '3');
+  check('typing 3 uses the three best pages and hides the remove buttons', rows().length === 3 && !rows()[0].querySelector('.finder-remove'), String(rows().length));
+  typeInto($('finder-entries-input'), '');
+  check('clearing the count returns to the clear headings', rows().length === 4);
+  PageFinderUI.close();
+
   // 7b. Two clear headings in a row are flagged once.
   await run({ pages: 20, high: [4, 5, 9] });
   check('adjacent clear headings produce one warning', /Two heading pages in a row \(4 and 5\)/.test(warnings()) && (warnings().match(/Two heading pages in a row/g) || []).length === 1, warnings());
@@ -2394,7 +2405,9 @@ and, at the end of `build()` before `return ui;`, add the listeners:
 
 ```js
     ui.entriesInput.addEventListener('input', () => {
-      const n = Math.round(Number(ui.entriesInput.value));
+      const raw = ui.entriesInput.value.trim();
+      if (raw === '') { st.entryCount = null; renderResult(); return; }   // cleared: back to the pages that clearly look like headings
+      const n = Math.round(Number(raw));
       if (n >= 1 && n <= st.pageCount) { st.entryCount = n; renderResult(); }
     });
     ui.assignInput.addEventListener('input', () => {
@@ -2476,8 +2489,9 @@ Replace `initResult` and `renderResult` (the Task 5 versions) with:
     const d = derive();
     const confident = new Map(d.sections.map((s) => [s.page, s.confident]));
 
-    ui.entriesField.hidden = !st.entryCount;
-    if (st.entryCount) { ui.entriesInput.max = String(st.pageCount); ui.entriesInput.value = String(st.entryCount); }
+    ui.entriesField.hidden = !st.indexFile;   // shown whenever a contents photo was chosen, so an unreadable photo can still be counted by hand
+    ui.entriesInput.max = String(st.pageCount);
+    ui.entriesInput.value = st.entryCount ? String(st.entryCount) : '';
     ui.assignInput.value = String(st.assignments);
     ui.assignInput.max = String(d.n);
 

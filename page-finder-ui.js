@@ -20,7 +20,12 @@
       indexInput: $('finder-index-input'), indexName: $('finder-index-name'), indexClear: $('finder-index-clear'),
       chooseError: $('finder-choose-error'), chooseCancel: $('finder-choose-cancel-btn'), start: $('finder-start-btn'),
       scanText: $('finder-scan-text'), progress: $('finder-progress'), scanCancel: $('finder-scan-cancel-btn'),
-      rows: $('finder-rows'), back: $('finder-back-btn'), copy: $('finder-copy-btn')
+      rows: $('finder-rows'), back: $('finder-back-btn'), copy: $('finder-copy-btn'),
+      entriesField: $('finder-entries-field'), entriesInput: $('finder-entries-input'), assignInput: $('finder-assign-input'),
+      warnings: $('finder-warnings'), chips: $('finder-chips'),
+      countAsIs: $('finder-count-as-is'), countAdd: $('finder-count-add'), extra: $('finder-extra'), countNote: $('finder-count-note'),
+      picker: $('finder-picker'), pickerTitle: $('finder-picker-title'), pickerList: $('finder-picker-list'),
+      pickerOther: $('finder-picker-other'), pickerOtherBtn: $('finder-picker-other-btn'), pickerClose: $('finder-picker-close-btn'),
     };
     ui.close.addEventListener('click', close);
     ui.backdrop.addEventListener('click', close);
@@ -37,6 +42,30 @@
     ui.start.addEventListener('click', start);
     ui.scanCancel.addEventListener('click', () => { if (st.controller) st.controller.abort(); });
     ui.back.addEventListener('click', () => { freeResult(); showStep('choose'); });
+    ui.entriesInput.addEventListener('input', () => {
+      const raw = ui.entriesInput.value.trim();
+      if (raw === '') { st.entryCount = null; renderResult(); return; }   // cleared: back to the pages that clearly look like headings
+      const n = Math.round(Number(raw));
+      if (n >= 1 && n <= st.pageCount) { st.entryCount = n; renderResult(); }
+    });
+    ui.assignInput.addEventListener('input', () => {
+      const n = Math.round(Number(ui.assignInput.value));
+      st.assignments = Number.isFinite(n) ? Math.max(0, n) : PageFinder.DEFAULT_ASSIGNMENTS;
+      renderResult();
+    });
+    ui.countAsIs.addEventListener('click', () => { st.counting = { mode: 'as-is', extra: st.counting.extra }; st.countingTouched = true; renderResult(); });
+    ui.countAdd.addEventListener('click', () => { st.counting = { mode: 'add', extra: st.counting.extra > 0 ? st.counting.extra : 2 }; st.countingTouched = true; renderResult(); });
+    ui.extra.addEventListener('input', () => {
+      st.counting = { mode: 'add', extra: Number(ui.extra.value) };
+      st.countingTouched = true;
+      renderResult();
+    });
+    ui.copy.addEventListener('click', copyResult);
+    ui.pickerClose.addEventListener('click', closePicker);
+    ui.pickerOtherBtn.addEventListener('click', () => {
+      const page = Number(ui.pickerOther.value);
+      if (Number.isInteger(page) && page >= 1 && page <= st.pageCount) choosePickerPage(page);
+    });
     return ui;
   }
 
@@ -187,32 +216,216 @@
     }
   }
 
-  /** Result state starts here; Task 6 fills in the editing controls. */
   function initResult() {
     st.entryCount = st.indexInfo && st.indexInfo.count > 0 ? st.indexInfo.count : null;
+    st.assignments = PageFinder.DEFAULT_ASSIGNMENTS;
+    st.labelEdits = new Map();     // entry index -> typed name
+    st.missing = new Set();        // entries marked "not in this PDF" (the picker stores this as a null override)
+    st.overrides = new Map();      // entry index -> page | null chosen by the user
+    st.added = new Set();          // pages added from the candidate chips (no contents photo)
+    st.removed = new Set();        // pages the user dropped (no contents photo)
+    st.counting = { mode: 'as-is', extra: 0 };
+    st.countingTouched = false;
+    st.pickerEntry = null;
   }
 
-  /** Plain result: one row per section with its heading thumbnail. Replaced by the full version in Task 6. */
-  function renderResult() {
+  /** Everything the screen shows, computed from the scores and the user's choices. */
+  function derive() {
     const picks = PageFinder.pickSections(st.scores, { entryCount: st.entryCount || undefined });
-    ui.rows.innerHTML = '';
-    picks.sections.forEach((section, i) => {
-      const row = document.createElement('div');
-      row.className = 'finder-row';
-      row.dataset.index = String(i);
-      const img = document.createElement('img');
-      img.className = 'finder-thumb';
-      img.src = st.thumbs[section.page - 1];
-      img.alt = `Heading of page ${section.page}`;
-      const text = document.createElement('span');
-      text.className = 'finder-page-btn';
-      text.textContent = `page ${section.page}`;
-      row.append(img, text);
-      ui.rows.appendChild(row);
+    let sections = picks.sections;
+    if (!st.entryCount) {
+      sections = sections.filter((s) => !st.removed.has(s.page))
+        .concat(picks.more.filter((m) => st.added.has(m.page)).map((m) => ({ page: m.page, score: m.score, confident: false })))
+        .sort((a, b) => a.page - b.page);
+    }
+    const n = st.entryCount || sections.length;
+    const rows = PageFinder.assignEntries(n, sections.map((s) => s.page), st.missing, st.overrides);
+    const auto = PageFinder.makeLabels(n, st.assignments);
+    const labels = auto.map((text, i) => (st.labelEdits.has(i) ? st.labelEdits.get(i) : text));
+    const pages = rows.filter((r) => r.page !== null).map((r) => r.page).sort((a, b) => a - b);
+    const front = pages.length ? pages[0] - 1 : 0;
+    if (!st.countingTouched) st.counting = PageFinder.defaultCounting(front);
+    return { picks, sections, n, rows, labels, pages, front };
+  }
+
+  function warningTexts(d) {
+    const out = [];
+    if (!st.indexFile) out.push('No contents page was added, so only pages that clearly look like headings are listed. Add a contents-page photo for a more accurate result.');
+    if (st.indexInfo && st.indexInfo.warning) out.push(st.indexInfo.warning);
+    if (d.n === 0) out.push('No heading pages were found. Pick pages from the list of possible pages below.');
+    if (st.entryCount) {
+      const clear = d.sections.filter((s) => s.confident).length;
+      if (clear < st.entryCount) {
+        out.push(`Your contents page lists ${st.entryCount} entries but only ${clear} page${clear === 1 ? '' : 's'} clearly look like headings. Entries without a page say "Page not found", and weaker picks are marked "Unsure". Check each heading picture. If an experiment is not in this PDF, open its page number and choose "Not in this PDF": the entries after it move up.`);
+      }
+    }
+    // Two clear headings in a row is unusual (a one-page experiment or a duplicate photo): say so once.
+    const clearPages = new Set(d.sections.filter((s) => s.confident).map((s) => s.page));
+    const pairs = PageFinder.adjacentPairs(d.pages.filter((p) => clearPages.has(p)));
+    if (pairs.length) out.push(`Two heading pages in a row (${pairs.map(([x, y]) => `${x} and ${y}`).join(', ')}): check which one is the real start.`);
+    PageFinder.duplicatePages(d.rows).forEach((page) => out.push(`Page ${page} is used for more than one entry. Change one of them.`));
+    if (st.counting.mode === 'ask') out.push('There is 1 page before the first heading. Choose below whether it should be counted.');
+    return out;
+  }
+
+  function renderResult() {
+    const d = derive();
+    const confident = new Map(d.sections.map((s) => [s.page, s.confident]));
+
+    ui.entriesField.hidden = !st.indexFile;   // shown whenever a contents photo was chosen, so an unreadable photo can still be counted by hand
+    ui.entriesInput.max = String(st.pageCount);
+    ui.entriesInput.value = st.entryCount ? String(st.entryCount) : '';
+    ui.assignInput.value = String(st.assignments);
+    ui.assignInput.max = String(d.n);
+
+    ui.warnings.innerHTML = '';
+    warningTexts(d).forEach((text) => {
+      const p = document.createElement('p');
+      p.textContent = text;
+      ui.warnings.appendChild(p);
     });
+
+    ui.rows.innerHTML = '';
+    d.rows.forEach((row) => {
+      const el = document.createElement('div');
+      el.className = 'finder-row';
+      el.dataset.index = String(row.index);
+
+      const thumb = document.createElement('img');
+      thumb.className = 'finder-thumb';
+      if (row.page !== null) { thumb.src = st.thumbs[row.page - 1]; thumb.alt = `Heading of page ${row.page}`; }
+      else { thumb.alt = 'No page'; thumb.style.visibility = 'hidden'; }
+
+      const main = document.createElement('div');
+      main.className = 'finder-row-main';
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.className = 'finder-label';
+      name.value = d.labels[row.index];
+      name.setAttribute('aria-label', `Name of entry ${row.index + 1}`);
+      name.addEventListener('input', () => st.labelEdits.set(row.index, name.value));
+      main.appendChild(name);
+      const crop = st.indexInfo && st.indexInfo.cropUrls && st.indexInfo.cropUrls[row.index];
+      if (crop) {
+        const box = document.createElement('div');
+        box.className = 'finder-entry-crop';
+        const cropImg = document.createElement('img');
+        cropImg.src = crop;
+        cropImg.alt = `Entry ${row.index + 1} from your contents page`;
+        box.appendChild(cropImg);
+        main.appendChild(box);
+      }
+      const status = document.createElement('span');
+      status.className = 'finder-status';
+      if (row.status === 'missing') status.textContent = 'Not in this PDF';
+      else if (row.status === 'unknown') status.textContent = 'Page not found';
+      else if (!row.manual && confident.get(row.page) === false) status.textContent = 'Unsure';
+      if (status.textContent) main.appendChild(status);
+      if (!st.entryCount) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'finder-remove btn btn-outline';
+        remove.textContent = 'Remove';
+        remove.addEventListener('click', () => { st.removed.add(row.page); st.added.delete(row.page); renderResult(); });
+        main.appendChild(remove);
+      }
+
+      const pageButton = document.createElement('button');
+      pageButton.type = 'button';
+      pageButton.className = 'finder-page-btn';
+      const shown = PageFinder.numberedPage(row.page, st.counting);
+      pageButton.textContent = shown === null ? '—' : `page ${shown}`;
+      pageButton.setAttribute('aria-label', `${d.labels[row.index]}: ${shown === null ? 'no page' : 'page ' + shown}. Change`);
+      pageButton.addEventListener('click', () => openPicker(row.index));
+
+      el.append(thumb, main, pageButton);
+      ui.rows.appendChild(el);
+    });
+
+    ui.chips.innerHTML = '';
+    if (!st.entryCount) {
+      d.picks.more.filter((m) => !st.added.has(m.page)).forEach((m) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'finder-chip';
+        chip.textContent = `+ page ${m.page}`;
+        chip.title = 'Add this page as a section start';
+        chip.addEventListener('click', () => { st.added.add(m.page); st.removed.delete(m.page); renderResult(); });
+        ui.chips.appendChild(chip);
+      });
+    }
+
+    ui.countAsIs.checked = st.counting.mode === 'as-is';
+    ui.countAdd.checked = st.counting.mode === 'add';
+    ui.extra.value = String(st.counting.extra);
+    ui.countNote.textContent = st.counting.mode === 'ask' ? '' : PageFinder.describeCounting(st.counting);
+    ui.copy.disabled = st.counting.mode === 'ask';
+  }
+
+  function copyResult() {
+    const d = derive();
+    const text = PageFinder.formatResult(d.rows, d.labels, st.counting);
+    const done = () => showToast('Copied. Paste it wherever you need it.');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => showToast('Copy failed. Select the text and copy it by hand.', 'error'));
+    } else {
+      const area = document.createElement('textarea');
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      try { document.execCommand('copy'); done(); } catch (err) { showToast('Copy failed.', 'error'); }
+      document.body.removeChild(area);
+    }
+  }
+
+  /* ---- page picker ---- */
+
+  function openPicker(index) {
+    const d = derive();
+    st.pickerEntry = index;
+    ui.pickerTitle.textContent = `Page for ${d.labels[index]}`;
+    ui.pickerList.innerHTML = '';
+    const option = (text, sub, thumb, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'finder-picker-option';
+      if (thumb) { const img = document.createElement('img'); img.src = thumb; img.alt = ''; b.appendChild(img); }
+      const strong = document.createElement('strong');
+      strong.textContent = text;
+      b.appendChild(strong);
+      if (sub) { const s = document.createElement('span'); s.textContent = sub; b.appendChild(s); }
+      b.addEventListener('click', onClick);
+      ui.pickerList.appendChild(b);
+    };
+    option('Not in this PDF', 'This entry has no page here', null, () => choosePickerPage(null));
+    option('Automatic', 'Use the suggested page', null, () => { st.overrides.delete(index); st.missing.delete(index); closePicker(); renderResult(); });
+    PageFinder.rankPages(st.scores).slice(0, 24).forEach((p) => {
+      option(`Page ${p.page}`, p.score > PageFinder.DEFAULT_CUTOFF ? 'Looks like a heading' : 'Less likely', st.thumbs[p.page - 1], () => choosePickerPage(p.page));
+    });
+    ui.pickerOther.value = '';
+    ui.pickerOther.max = String(st.pageCount);
+    ui.picker.hidden = false;
+    ui.pickerList.querySelector('button').focus();
+  }
+
+  function choosePickerPage(page) {
+    if (st.pickerEntry === null) return;
+    st.overrides.set(st.pickerEntry, page);
+    closePicker();
+    renderResult();
+  }
+
+  function closePicker() {
+    ui.picker.hidden = true;
+    st.pickerEntry = null;
   }
 
   function onKeydown(e) {
+    if (e.key === 'Escape' && ui.picker && !ui.picker.hidden) {
+      e.stopPropagation();
+      closePicker();
+      return;
+    }
     if (e.key === 'Escape') {
       e.stopPropagation();
       close();
