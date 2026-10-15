@@ -50,6 +50,8 @@ const elements = {
   viewDocsBtn: document.getElementById('view-docs-btn'),
   viewPagesBtn: document.getElementById('view-pages-btn'),
   gridInstructionText: document.getElementById('grid-instruction-text'),
+  autoCropBtn: document.getElementById('auto-crop-btn'),
+  autoCropLabel: document.getElementById('auto-crop-label'),
   exportPdfBtn: document.getElementById('export-pdf-btn'),
   exportBtnText: document.getElementById('export-btn-text'),
   
@@ -323,6 +325,7 @@ function renderPageGrid() {
   // Calculate unique source files
   const uniqueFiles = new Set(state.pages.map(p => p.fileName));
   elements.statFileCount.textContent = `${uniqueFiles.size} file${uniqueFiles.size === 1 ? '' : 's'}`;
+  syncAutoCropButton();
 
   // Toggle View Containers
   if (totalPages === 0) {
@@ -1073,6 +1076,64 @@ function setupSettingsListeners() {
 }
 
 /* ==========================================================================
+   Auto Crop
+   ========================================================================== */
+
+let pageDetector = null;
+
+/** Show Auto Crop only when there is at least one photo (image page) to crop. */
+function syncAutoCropButton() {
+  const count = CropState.countCroppable(state.pages);
+  elements.autoCropBtn.style.display = count > 0 ? '' : 'none';
+  elements.autoCropLabel.textContent = `Auto Crop (${count})`;
+}
+
+/** The corner model is created on first use and loads only then. */
+function detectPage(item) {
+  if (!pageDetector) pageDetector = PageDetect.createDetector();
+  return loadImageFromUrl(item.thumbnailDataUrl).then((img) => pageDetector.detect(img));
+}
+
+async function runAutoCrop() {
+  const targets = CropState.autoCropTargets(state.pages);
+  if (targets.length === 0) {
+    showToast('Nothing to crop: pages you cropped by hand are left alone.', 'error');
+    return;
+  }
+
+  let failures = 0;
+  showProcessingModal('Detecting Page Edges', 'Loading the detector...', 5);
+  try {
+    for (let n = 0; n < targets.length; n++) {
+      const item = state.pages[targets[n]];
+      updateProcessingProgress(`Checking ${item.fileName} (${n + 1} of ${targets.length})...`, 5 + Math.round(((n + 1) / targets.length) * 90));
+      try {
+        const result = await detectPage(item);
+        CropState.applyDetection(item, result);
+        await refreshCropPreview(item);
+      } catch (err) {
+        failures++;
+        console.error('Auto crop failed for', item.fileName, err);
+      }
+    }
+  } finally {
+    hideProcessingModal();
+  }
+
+  renderPageGrid();
+
+  if (failures === targets.length) {
+    showToast('Auto Crop is unavailable right now. You can still crop each page by hand.', 'error');
+    return;
+  }
+  const summary = CropState.summarize(state.pages, targets);
+  const parts = [`${summary.cropped} cropped`];
+  if (summary.review) parts.push(`${summary.review} need review`);
+  if (failures) parts.push(`${failures} failed`);
+  showToast(parts.join(', ') + '.', failures ? 'error' : 'success');
+}
+
+/* ==========================================================================
    Progress Modal Helper
    ========================================================================== */
 
@@ -1432,6 +1493,7 @@ function initializeApp() {
   elements.exportPdfBtn.addEventListener('click', exportMergedPdf);
   elements.viewDocsBtn.addEventListener('click', () => setViewMode('documents'));
   elements.viewPagesBtn.addEventListener('click', () => setViewMode('pages'));
+  elements.autoCropBtn.addEventListener('click', runAutoCrop);
 
   // Mobile Bottom Bar Actions
   if (elements.cameraInput) {
