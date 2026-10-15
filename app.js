@@ -1046,26 +1046,7 @@ async function exportMergedPdf() {
 
       } else if (item.sourceType === 'image') {
         // Handle image page
-        const imageBytes = await getImageBytesWithRotationAndQuality(item, state.settings.quality);
-        let embeddedImage;
-
-        // Try embedding directly or fallback to PNG/JPEG
-        if (item.fileName.toLowerCase().endsWith('.png') && item.rotation === 0 && state.settings.quality === 1.0 && !state.settings.enhanceScans) {
-          try {
-            embeddedImage = await mergedPdf.embedPng(imageBytes);
-          } catch (e) {
-            embeddedImage = await embedCanvasImage(mergedPdf, item);
-          }
-        } else if ((item.fileName.toLowerCase().endsWith('.jpg') || item.fileName.toLowerCase().endsWith('.jpeg')) && item.rotation === 0 && state.settings.quality === 1.0 && !state.settings.enhanceScans) {
-          try {
-            embeddedImage = await mergedPdf.embedJpg(imageBytes);
-          } catch (e) {
-            embeddedImage = await embedCanvasImage(mergedPdf, item);
-          }
-        } else {
-          // Re-rendered through canvas with user's exact rotation applied + scan enhancement if enabled
-          embeddedImage = await embedCanvasImage(mergedPdf, item);
-        }
+        const embeddedImage = await embedImagePage(mergedPdf, item);
 
         // Calculate page dimension
         const imgDims = embeddedImage.scale(1.0);
@@ -1124,78 +1105,121 @@ async function exportMergedPdf() {
   }
 }
 
-/**
- * Render image to offscreen canvas applying user's rotation and embed into PDF
- */
-async function embedCanvasImage(mergedPdf, item) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      const isRotated90or270 = item.rotation === 90 || item.rotation === 270;
-      canvas.width = isRotated90or270 ? img.naturalHeight : img.naturalWidth;
-      canvas.height = isRotated90or270 ? img.naturalWidth : img.naturalHeight;
-
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((item.rotation * Math.PI) / 180);
-      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-      ctx.restore();
-
-      // USP 3: High-Contrast Document Scan Enhancer (B&W Photocopy Mode)
-      if (state.settings.enhanceScans) {
-        try {
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const d = imgData.data;
-          for (let p = 0; p < d.length; p += 4) {
-            // Perceived luminance
-            const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
-            // S-curve contrast boost to wipe yellow lighting and background phone shadows
-            const enhanced = lum > 175 ? 255 : (lum < 65 ? 0 : Math.round((lum - 65) * (255 / 110)));
-            d[p] = enhanced;
-            d[p + 1] = enhanced;
-            d[p + 2] = enhanced;
-          }
-          ctx.putImageData(imgData, 0, 0);
-        } catch (e) {
-          console.warn('Scan enhance filter skipped:', e);
-        }
-      }
-
-      canvas.toBlob(async (blob) => {
-        try {
-          const buffer = await blob.arrayBuffer();
-          const embedded = await mergedPdf.embedJpg(buffer);
-          resolve(embedded);
-        } catch (err) {
-          // If JPEG fails, try PNG
-          canvas.toBlob(async (pngBlob) => {
-            try {
-              const pngBuf = await pngBlob.arrayBuffer();
-              const pngEmbedded = await mergedPdf.embedPng(pngBuf);
-              resolve(pngEmbedded);
-            } catch (pngErr) {
-              reject(pngErr);
-            }
-          }, 'image/png');
-        }
-      }, 'image/jpeg', state.settings.quality >= 1.0 ? 0.95 : state.settings.quality);
-    };
-    img.onerror = () => reject(new Error('Failed to load image for canvas embedding'));
-    img.src = item.thumbnailDataUrl;
-  });
+/** True when the page has a stored crop that is safe to apply. */
+function hasUsableCrop(item) {
+  return !!item.cropQuad && CropGeometry.isValidQuad(item.cropQuad);
 }
 
 /**
- * Return raw image file bytes
+ * Render an image page to a canvas: orientation normalised, optional
+ * perspective crop, then the user's rotation. Sizes are capped to
+ * MAX_EXPORT_PIXELS so large phone photos stay within canvas limits.
  */
-async function getImageBytesWithRotationAndQuality(item, quality) {
-  if (item.sourceFile) {
-    return await item.sourceFile.arrayBuffer();
+async function renderImagePageCanvas(item) {
+  const { img, revoke } = await loadImageElement(item.fullBlob || item.sourceFile);
+  try {
+    const capped = CropGeometry.capPixels(img.naturalWidth, img.naturalHeight, MAX_EXPORT_PIXELS);
+    let working = document.createElement('canvas');
+    working.width = capped.width;
+    working.height = capped.height;
+    const workingCtx = working.getContext('2d', { willReadFrequently: true });
+    if (!workingCtx) throw new Error('This photo is too large for this device to process.');
+    workingCtx.drawImage(img, 0, 0, working.width, working.height);
+
+    if (hasUsableCrop(item)) {
+      const quadPx = item.cropQuad.map(([x, y]) => [x * working.width, y * working.height]);
+      const natural = CropGeometry.quadOutputSize(quadPx);
+      const size = CropGeometry.capPixels(natural.width, natural.height, MAX_EXPORT_PIXELS);
+      const warped = CropGeometry.warpPerspective(
+        workingCtx.getImageData(0, 0, working.width, working.height), quadPx, size.width, size.height
+      );
+      const cropped = document.createElement('canvas');
+      cropped.width = warped.width;
+      cropped.height = warped.height;
+      cropped.getContext('2d').putImageData(new ImageData(warped.data, warped.width, warped.height), 0, 0);
+      working = cropped;
+    }
+
+    const quarterTurn = item.rotation === 90 || item.rotation === 270;
+    const out = document.createElement('canvas');
+    out.width = quarterTurn ? working.height : working.width;
+    out.height = quarterTurn ? working.width : working.height;
+    const ctx = out.getContext('2d');
+    ctx.translate(out.width / 2, out.height / 2);
+    ctx.rotate((item.rotation * Math.PI) / 180);
+    ctx.drawImage(working, -working.width / 2, -working.height / 2);
+    return out;
+  } finally {
+    revoke();
   }
-  return null;
+}
+
+/**
+ * Re-render an image page through a canvas (crop, rotation, scan enhance)
+ * and embed it into the PDF.
+ */
+async function embedCanvasImage(mergedPdf, item) {
+  const canvas = await renderImagePageCanvas(item);
+  const ctx = canvas.getContext('2d');
+
+  // USP 3: High-Contrast Document Scan Enhancer (B&W Photocopy Mode)
+  if (state.settings.enhanceScans) {
+    try {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+      for (let p = 0; p < d.length; p += 4) {
+        // Perceived luminance
+        const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+        // S-curve contrast boost to wipe yellow lighting and background phone shadows
+        const enhanced = lum > 175 ? 255 : (lum < 65 ? 0 : Math.round((lum - 65) * (255 / 110)));
+        d[p] = enhanced;
+        d[p + 1] = enhanced;
+        d[p + 2] = enhanced;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    } catch (e) {
+      console.warn('Scan enhance filter skipped:', e);
+    }
+  }
+
+  const jpegQuality = state.settings.quality >= 1.0 ? 0.95 : state.settings.quality;
+  const jpegBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', jpegQuality));
+  if (jpegBlob) {
+    try {
+      return await mergedPdf.embedJpg(await jpegBlob.arrayBuffer());
+    } catch (err) {
+      // fall through to PNG
+    }
+  }
+  const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!pngBlob) throw new Error('Could not encode this page. The photo may be too large for this device.');
+  return mergedPdf.embedPng(await pngBlob.arrayBuffer());
+}
+
+/**
+ * Produce the embedded image for an image page. The original bytes go in
+ * untouched only when nothing needs to change (no crop, rotation, quality
+ * change, enhance, or EXIF rotation); otherwise the page is re-rendered.
+ */
+async function embedImagePage(mergedPdf, item) {
+  const direct = ImageNormalize.canEmbedOriginalDirectly({
+    fileName: item.fileName,
+    rotation: item.rotation,
+    quality: state.settings.quality,
+    enhanceScans: state.settings.enhanceScans,
+    hasCrop: hasUsableCrop(item),
+    jpegOrientation: item.jpegOrientation
+  });
+
+  if (direct) {
+    try {
+      const bytes = await item.sourceFile.arrayBuffer();
+      return direct === 'png' ? await mergedPdf.embedPng(bytes) : await mergedPdf.embedJpg(bytes);
+    } catch (err) {
+      // fall through to the canvas path
+    }
+  }
+  return embedCanvasImage(mergedPdf, item);
 }
 
 /**
