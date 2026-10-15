@@ -40,7 +40,8 @@ Journals: CN (41 pages, certificate + index at pages 1–2), DWM (36 pages, no c
 4. **The index count removes that problem.** Given the number of entries N, taking the top N is exact on CN and WMC (see 2).
 5. **Printed "EXPERIMENT NO. N" code pages in WMC are not starts** (pages 4, 13, 27, 39, 52, 57). They ranked 14th to 56th of 72, below every true start.
 6. **The classifier cannot tell "Assignment" from "Experiment"** (top-2 assignment guess wrong on all three). So typed names come from counts, not from the page.
-7. **A journal can contain fewer sections than its index.** DWM's index lists 13 entries (11 experiments, 2 assignments) but the PDF has headings for Experiments 1–8 (pages 16 and 17 both say "Experiment No. 8", a duplicate photo) and the two assignments; Experiments 9–11 are absent. Matching headings to entries purely by order would label Assignment 1 as Experiment 9.
+7. **No single score threshold works for all three journals, but a floor does.** Held-out scores: CN true starts >= 1.33 and the best non-start -0.58; DWM lowest true start -0.78 (a duplicate page) and best non-start -0.75; WMC true starts >= 1.71 and best non-start 1.20. So the best-N pick is only trusted above a floor of -0.5, where no non-heading page was found.
+8. **A journal can contain fewer sections than its index.** DWM's index lists 13 entries (11 experiments, 2 assignments) but the PDF has headings for Experiments 1–8 (pages 16 and 17 both say "Experiment No. 8", a duplicate photo) and the two assignments; Experiments 9–11 are absent. Matching headings to entries purely by order would label Assignment 1 as Experiment 9.
 
 ## Design
 
@@ -60,9 +61,9 @@ Journals: CN (41 pages, certificate + index at pages 1–2), DWM (36 pages, no c
 - Render only the top strip of each PDF page (pdf.js, page destroyed after use so memory stays flat on a 95 MB PDF), crop rows 3%–20%, resize to 576×192, normalise like ImageNet.
 - Run a small image model in the browser through the ONNX Runtime Web build already vendored for Auto Crop (`vendor/ort`, minimal wasm). Multiply the 1280-d feature by the logistic-regression weights to get a score per page. The model, the weights and a model card ship in `models/`.
 - Output: `{ page, score }` for every page, plus the page's top-strip thumbnail (a small blob) for the result screen.
-- Model choice is a gated decision made in the plan's first task: candidates are MobileNetV2 1.0 (about 9 MB fp32, 2–3 MB quantised) and MobileNetV2 0.35 (about 1.4 MB). The smallest that keeps the leave-one-journal-out result (top-N exact on all three, AUC ≥ 0.99) and numerical parity with the Python reference (feature difference below 1e-3) ships. Model and runtime load lazily on first use; budget under 4 MB.
+- Model choice is a gated decision made in the plan's first task: candidates are MobileNetV2 1.0 (about 9 MB fp32, 2–3 MB quantised) and MobileNetV2 0.35 (about 1.4 MB). The smallest that keeps the leave-one-journal-out result (AUC ≥ 0.99 on each journal, top-N within one page of exact on each, no extra page above the 1.5 cut-off; the full-size baseline got 10/11 on DWM) and numerical parity with the Python reference (feature difference below 1e-3) ships. Model and runtime load lazily on first use; budget under 4 MB.
 - **Deciding which pages are headings:**
-  - **With an index:** the top N pages by score, where N is the number of entries.
+  - **With an index:** the top N pages by score, where N is the number of entries, but never a page scoring at or below the floor (-0.5). If fewer than N pages qualify, the remaining entries say "Page not found" instead of being filled with pages that do not look like headings; marking an entry "not in this PDF" moves the later entries up.
   - **Without an index:** pages with `score > 1.5` are proposed as sections. The result screen shows "N more possible pages" (the next ten by score, with thumbnails) so a missed heading is one tap to add. The default errs toward missing a page over adding a wrong one.
 - A page is never a section start twice: if two pages in a row both score above the cut-off the app keeps both candidates but shows "Two heading pages in a row (16, 17): check which is the start."
 
@@ -94,8 +95,8 @@ Typed labels cannot be read from the pages, so they come from counts the user ca
 
 ### 6. Warnings and reconciliation (shown inline, never blocking)
 
-- Index count differs from sections found ("Your contents page lists 13 entries and I found 11 heading pages"): the extra entries are marked "?" and the page picker offers "not in this PDF". The user marks which entries are missing; the rest keep the order mapping.
-- Two heading pages in a row (see section 2).
+- Index count differs from sections found ("Your contents page lists 13 entries but only 10 pages clearly look like headings"): the entries without a page say "Page not found" and the page picker offers "Not in this PDF". The user marks the entries that are missing from the PDF; the entries after them move up to the next heading pages. Each row shows the picture of its heading, so a wrong match is visible.
+- Two clear heading pages in a row: one warning names the pair (unclear picks are not counted, so junk pages do not flood the screen).
 - A section page with a low score (below the cut-off but chosen because the index needs N) is marked "unsure".
 - Cancelled or failed scans (unreadable PDF, zero pages) show a plain message and no partial result.
 
@@ -112,7 +113,7 @@ New: `section-detect.js` (render strip, run model, score), `page-finder.js` (pur
 
 ## Acceptance (on the three journals, local run)
 
-1. With the correct entry count (CN 12, WMC 11) the proposed pages equal the true starts. DWM's index lists 13 entries but the PDF has 11 heading pages (pages 16 and 17 are a duplicate "Experiment No. 8"): the app shows the mismatch warning and the duplicate flag, and after the user marks Experiments 9–11 "not in this PDF" and picks page 16 or 17, the remaining entries map to the right pages.
+1. With the correct entry count (CN 12, WMC 11) the proposed pages equal the true starts. DWM's index lists 13 entries but only 10 pages look like headings (Experiments 9–11 are not in the PDF; page 16 is a duplicate "Experiment No. 8" below the floor): the app shows the mismatch warning, entries 11–13 say "Page not found", and after the user marks Experiments 9–11 "Not in this PDF" the two assignments move up to their correct pages.
 2. Without an index, no wrong page is proposed on any journal, and every true start page is among the proposed pages or the "more possible pages" list.
 3. The counting question's pre-answer is "as in this PDF" for CN and "extra front pages: 2" for DWM and WMC.
 4. The copied text for each journal reads as typed lines with the counting rule stated.
