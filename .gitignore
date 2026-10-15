@@ -11,3 +11,6 @@ temp_*
 
 # Node dependencies
 node_modules/
+
+# Superpowers executor scratch
+.superpowers/
