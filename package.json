@@ -19,5 +19,8 @@
     "macos"
   ],
   "author": "Gurpreet Singh Sandhu",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "heic2any": "^0.0.4"
+  }
 }

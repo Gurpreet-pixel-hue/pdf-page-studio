@@ -32,6 +32,10 @@ const state = {
   }
 };
 
+const ASSET_VERSION = '2.5.0';
+const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
+const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
+
 // DOM Element Cache
 const elements = {
   fileInput: document.getElementById('file-input'),
@@ -133,6 +137,58 @@ function showToast(message, type = 'success') {
    ========================================================================== */
 
 /**
+ * Decode an image from a URL. Browsers apply EXIF orientation here, so
+ * naturalWidth/naturalHeight describe the upright photo.
+ */
+function loadImageFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not decode image'));
+    img.src = url;
+  });
+}
+
+/** Decode a Blob. Call revoke() once the element is no longer needed. */
+async function loadImageElement(blob) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await loadImageFromUrl(url);
+    return { img, revoke: () => URL.revokeObjectURL(url) };
+  } catch (err) {
+    URL.revokeObjectURL(url);
+    throw err;
+  }
+}
+
+let heicDecoderPromise = null;
+
+/** Load the HEIC decoder on first use. */
+function loadHeicDecoder() {
+  if (!heicDecoderPromise) {
+    heicDecoderPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `vendor/heic2any.min.js?v=${ASSET_VERSION}`;
+      script.onload = () => (window.heic2any ? resolve(window.heic2any) : reject(new Error('HEIC decoder unavailable')));
+      script.onerror = () => {
+        heicDecoderPromise = null; // allow a retry on the next file
+        reject(new Error('HEIC decoder failed to load'));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return heicDecoderPromise;
+}
+
+/** Return a Blob the browser can decode: HEIC is converted to JPEG, anything else is returned as is. */
+async function toDecodableBlob(file) {
+  if (!ImageNormalize.isHeicLike(file)) return file;
+  const heic2any = await loadHeicDecoder();
+  const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+  return Array.isArray(result) ? result[0] : result;
+}
+
+/**
  * Ingest multiple files selected via file input or drag-drop
  */
 async function handleFiles(fileList) {
@@ -224,34 +280,54 @@ async function parsePdfFile(file) {
 }
 
 /**
- * Load image file and generate thumbnail
+ * Load an image file: convert HEIC, normalise orientation, and build a
+ * working copy (long edge <= WORKING_MAX_EDGE) for thumbnails and detection.
+ * The full-resolution Blob is kept for export.
  */
-function parseImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        resolve({
-          id: generateId(),
-          sourceType: 'image',
-          sourceFile: file,
-          fileName: file.name,
-          sourcePageIndex: 0,
-          sourceTotalPages: 1,
-          originalIndex: state.fileCounter++,
-          thumbnailDataUrl: e.target.result,
-          rotation: 0,
-          width: img.naturalWidth || 800,
-          height: img.naturalHeight || 600
-        });
-      };
-      img.onerror = () => reject(new Error('Failed to load image: ' + file.name));
-      img.src = e.target.result;
+async function parseImageFile(file) {
+  const blob = await toDecodableBlob(file);
+  const jpegOrientation = ImageNormalize.readJpegOrientation(await blob.slice(0, 131072).arrayBuffer());
+  const { img, revoke } = await loadImageElement(blob);
+
+  try {
+    const width = img.naturalWidth;
+    const height = img.naturalHeight;
+    if (!width || !height) throw new Error('Image has no pixels: ' + file.name);
+
+    const work = ImageNormalize.fitWithin(width, height, WORKING_MAX_EDGE);
+    const canvas = document.createElement('canvas');
+    canvas.width = work.width;
+    canvas.height = work.height;
+    const ctx = canvas.getContext('2d');
+    const keepsAlpha = /image\/(png|webp|gif)/.test(blob.type);
+    if (!keepsAlpha) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, work.width, work.height);
+    }
+    ctx.drawImage(img, 0, 0, work.width, work.height);
+
+    return {
+      id: generateId(),
+      sourceType: 'image',
+      sourceFile: file,
+      fullBlob: blob,
+      fileName: file.name,
+      sourcePageIndex: 0,
+      sourceTotalPages: 1,
+      originalIndex: state.fileCounter++,
+      thumbnailDataUrl: canvas.toDataURL(keepsAlpha ? 'image/png' : 'image/jpeg', 0.9),
+      previewUrl: null,
+      rotation: 0,
+      width,
+      height,
+      jpegOrientation,
+      cropQuad: null,
+      cropState: 'none',
+      cropConfidence: 0
     };
-    reader.onerror = () => reject(new Error('Failed to read file: ' + file.name));
-    reader.readAsDataURL(file);
-  });
+  } finally {
+    revoke();
+  }
 }
 
 /* ==========================================================================
