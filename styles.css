@@ -107,6 +107,16 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: var(--radius-sm);
+}
+
+.brand-section:focus-visible {
+  outline: 2px solid var(--accent-terracotta);
+  outline-offset: 4px;
 }
 
 .brand-logo {

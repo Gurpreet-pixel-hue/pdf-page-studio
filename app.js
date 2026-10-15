@@ -32,7 +32,7 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.6.0';
+const ASSET_VERSION = '2.6.1';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 
@@ -924,6 +924,25 @@ function removePage(index) {
 /**
  * Clear all pages
  */
+/**
+ * Start over from the title: confirm if pages would be lost, refetch the
+ * page's own scripts and styles past the HTTP cache, then reload from a
+ * one-off address so the HTML is fresh too. (The site keeps no service worker
+ * or Cache Storage of its own, and the origin is shared with other projects,
+ * so those are left alone.) A failed or slow refetch never blocks the reload.
+ */
+async function startOver({ confirmFn = window.confirm.bind(window), fetchFn = window.fetch.bind(window), reload = (url) => window.location.replace(url) } = {}) {
+  if (state.pages.length > 0 && !confirmFn('Start over? This clears all uploaded pages and reloads the site.')) return;
+  const assets = [...document.querySelectorAll('script[src], link[rel="stylesheet"][href], link[rel="manifest"][href]')]
+    .map((el) => el.src || el.href);
+  const refetch = Promise.allSettled(assets.map((url) => fetchFn(url, { cache: 'reload' })));
+  await Promise.race([refetch, new Promise((resolve) => setTimeout(resolve, 4000))]);
+  const target = new URL(window.location.href);
+  target.search = `?fresh=${Date.now()}`;
+  target.hash = '';
+  reload(target.href);
+}
+
 function clearAll() {
   if (state.pages.length === 0) return;
   if (confirm('Are you sure you want to remove all uploaded pages?')) {
@@ -1538,6 +1557,13 @@ function initializeApp() {
   elements.viewDocsBtn.addEventListener('click', () => setViewMode('documents'));
   elements.viewPagesBtn.addEventListener('click', () => setViewMode('pages'));
   elements.autoCropBtn.addEventListener('click', runAutoCrop);
+  document.getElementById('brand-home').addEventListener('click', (e) => {
+    e.preventDefault();
+    startOver();
+  });
+  if (new URLSearchParams(window.location.search).has('fresh')) {
+    window.history.replaceState(null, '', window.location.pathname); // tidy the one-off address after a fresh start
+  }
 
   // Mobile Bottom Bar Actions
   if (elements.cameraInput) {
