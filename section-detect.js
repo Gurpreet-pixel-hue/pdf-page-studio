@@ -119,7 +119,8 @@
       const { session, head } = await load();
       let pdf;
       try {
-        pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+        // isEvalSupported: false closes CVE-2024-4367 (a crafted PDF running script in pdf.js < 4.2.67); see app.js
+        pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
       } catch (err) {
         throw friendlyPdfError(err);
       }
