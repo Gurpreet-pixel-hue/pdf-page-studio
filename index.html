@@ -15,15 +15,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PDF Studio">
-  <link rel="manifest" href="manifest.json?v=2.9.2">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.9.2">
+  <link rel="manifest" href="manifest.json?v=2.9.3">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.9.3">
 
   <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2.9.2">
+  <link rel="stylesheet" href="styles.css?v=2.9.3">
   <script src="vendor/pdf-lib.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
 </head>
@@ -542,16 +542,16 @@
             </svg>
           </button>
         </div>
-        <p class="crop-hint" id="split-hint">Choose how to split, then check the parts below.</p>
+        <p class="crop-hint" id="split-hint">Click between pages to select one or more cut points, or choose a range mode below.</p>
         <div class="split-strip" id="split-strip" role="group" aria-label="Pages of the document"></div>
         <div class="split-modes" role="tablist" aria-label="How to split">
-          <button type="button" role="tab" class="split-mode-btn" id="split-mode-cut" data-mode="cut" aria-selected="true">One cut</button>
+          <button type="button" role="tab" class="split-mode-btn" id="split-mode-cut" data-mode="cut" aria-selected="true">Visual cuts</button>
           <button type="button" role="tab" class="split-mode-btn" id="split-mode-fixed" data-mode="fixed" aria-selected="false">Fixed range</button>
           <button type="button" role="tab" class="split-mode-btn" id="split-mode-custom" data-mode="custom" aria-selected="false">Custom range</button>
         </div>
         <div class="split-controls">
           <label class="split-field" id="split-cut-field" for="split-input">Split after page
-            <input type="number" id="split-input" inputmode="numeric" min="1" step="1" value="1">
+            <input type="text" id="split-input" inputmode="numeric" value="1" autocomplete="off" spellcheck="false">
             <span id="split-total">of 2</span>
           </label>
           <label class="split-field" id="split-fixed-field" for="split-fixed-input" hidden>Pages in each part
@@ -708,7 +708,7 @@
         <div class="install-modal-header">
           <div class="install-header-left">
             <div class="install-app-icon-preview">
-              <img src="assets/icon-192.png?v=2.9.2" alt="PDF Studio Icon" width="38" height="38">
+              <img src="assets/icon-192.png?v=2.9.3" alt="PDF Studio Icon" width="38" height="38">
             </div>
             <div>
               <h3 class="install-modal-title">Add PDF Page Studio</h3>
@@ -796,19 +796,19 @@
 
   </div>
 
-  <script src="crop-geometry.js?v=2.9.2"></script>
-  <script src="image-normalize.js?v=2.9.2"></script>
-  <script src="crop-state.js?v=2.9.2"></script>
-  <script src="doc-groups.js?v=2.9.2"></script>
-  <script src="crop-editor.js?v=2.9.2"></script>
-  <script src="page-detect.js?v=2.9.2"></script>
-  <script src="file-name.js?v=2.9.2"></script>
-  <script src="split-dialog.js?v=2.9.2"></script>
-  <script src="page-finder.js?v=2.9.2"></script>
-  <script src="page-finder-ui.js?v=2.9.2"></script>
-  <script src="section-detect.js?v=2.9.2"></script>
-  <script src="index-scan.js?v=2.9.2"></script>
-  <script src="export-name-dialog.js?v=2.9.2"></script>
-  <script src="app.js?v=2.9.2"></script>
+  <script src="crop-geometry.js?v=2.9.3"></script>
+  <script src="image-normalize.js?v=2.9.3"></script>
+  <script src="crop-state.js?v=2.9.3"></script>
+  <script src="doc-groups.js?v=2.9.3"></script>
+  <script src="crop-editor.js?v=2.9.3"></script>
+  <script src="page-detect.js?v=2.9.3"></script>
+  <script src="file-name.js?v=2.9.3"></script>
+  <script src="split-dialog.js?v=2.9.3"></script>
+  <script src="page-finder.js?v=2.9.3"></script>
+  <script src="page-finder-ui.js?v=2.9.3"></script>
+  <script src="section-detect.js?v=2.9.3"></script>
+  <script src="index-scan.js?v=2.9.3"></script>
+  <script src="export-name-dialog.js?v=2.9.3"></script>
+  <script src="app.js?v=2.9.3"></script>
 </body>
 </html>

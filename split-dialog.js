@@ -36,10 +36,16 @@
     ui.close.addEventListener('click', close);
     ui.backdrop.addEventListener('click', close);
     ui.modal.addEventListener('keydown', onKeydown);
-    ui.tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode, true)));
+    ui.tabs.forEach((tab) => tab.addEventListener('click', () => {
+      if (session && tab.dataset.mode !== 'cut') session.visualTouched = false;
+      setMode(tab.dataset.mode, true);
+    }));
     MODES.forEach((m) => ui.inputs[m].addEventListener('input', () => {
       if (!session) return;
-      if (m === 'cut') session.cutText = ui.inputs.cut.value;
+      if (m === 'cut') {
+        session.cutText = ui.inputs.cut.value;
+        session.visualTouched = true;
+      }
       if (m === 'fixed') session.fixedText = ui.inputs.fixed.value;
       if (m === 'custom') session.customText = ui.inputs.custom.value;
       render();
@@ -47,9 +53,32 @@
     ui.strip.addEventListener('click', (e) => {
       const gap = e.target.closest('.split-gap');
       if (!gap || !session) return;
-      session.cutText = gap.dataset.after;
+      const after = Number(gap.dataset.after);
+      if (!Number.isFinite(after)) return;
+
+      if (session.mode !== 'cut' || !session.visualTouched) {
+        session.visualTouched = true;
+        session.cutText = String(after);
+        ui.inputs.cut.value = session.cutText;
+        session.skipAutoScroll = true;
+        setMode('cut', false);
+        session.skipAutoScroll = false;
+        return;
+      }
+
+      const parsed = parseCutPoints(session.cutText, session.count);
+      const activeCuts = new Set(parsed.cuts || []);
+      if (activeCuts.has(after)) {
+        activeCuts.delete(after);
+      } else {
+        activeCuts.add(after);
+      }
+      const nextCuts = [...activeCuts].sort((a, b) => a - b);
+      session.cutText = nextCuts.join(', ');
       ui.inputs.cut.value = session.cutText;
-      setMode('cut', false);
+      session.skipAutoScroll = true;
+      render();
+      session.skipAutoScroll = false;
     });
     return ui;
   }
@@ -61,14 +90,45 @@
     return n >= 1 && n < count ? n : null;
   }
 
+  /** Parse one or more cut points (1 to count - 1) separated by commas, semicolons, or spaces. */
+  function parseCutPoints(text, count) {
+    const raw = String(text || '').trim();
+    if (!raw) {
+      return {
+        sizes: null,
+        cuts: [],
+        error: `Click between pages to select cut points, or enter page numbers from 1 to ${count - 1}.`
+      };
+    }
+    const tokens = raw.split(/[\s,;]+/).filter(Boolean);
+    const nums = [];
+    for (const token of tokens) {
+      const n = parseWhole(token, count);
+      if (n === null) {
+        return {
+          sizes: null,
+          cuts: [],
+          error: `Enter page numbers from 1 to ${count - 1}.`
+        };
+      }
+      nums.push(n);
+    }
+    const cuts = [...new Set(nums)].sort((a, b) => a - b);
+    const sizes = [];
+    let prev = 0;
+    for (const c of cuts) {
+      sizes.push(c - prev);
+      prev = c;
+    }
+    sizes.push(count - prev);
+    return { sizes, cuts };
+  }
+
   /** What the current mode would do: { sizes, error, note }. sizes is null when it cannot split. */
   function current() {
     const { count, mode } = session;
     if (mode === 'cut') {
-      const n = parseWhole(session.cutText, count);
-      return n === null
-        ? { sizes: null, error: `Enter a page number from 1 to ${count - 1}.` }
-        : { sizes: [n, count - n] };
+      return parseCutPoints(session.cutText, count);
     }
     if (mode === 'fixed') {
       const n = parseWhole(session.fixedText, count);
@@ -121,8 +181,10 @@
       gap.setAttribute('aria-pressed', selected ? 'true' : 'false');
       gap.classList.toggle('selected', selected);
     });
-    const firstCut = ui.strip.querySelector('.split-gap.selected');
-    if (firstCut) ui.strip.scrollLeft = firstCut.offsetLeft - ui.strip.clientWidth / 2;
+    if (!session.skipAutoScroll) {
+      const firstCut = ui.strip.querySelector('.split-gap.selected');
+      if (firstCut) ui.strip.scrollLeft = firstCut.offsetLeft - ui.strip.clientWidth / 2;
+    }
 
     ui.apply.disabled = !sizes;
     ui.inputs[mode].classList.toggle('invalid', !sizes && !quiet);

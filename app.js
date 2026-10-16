@@ -18,6 +18,7 @@ const state = {
   fileCounter: 0,
   draggedIndex: null,
   draggedDocIndex: null,
+  selectedDocKey: null,
   viewMode: 'documents', // 'documents' (one card per source file) | 'pages' (one card per page)
   activeLightboxIndex: null,
   settings: {
@@ -32,7 +33,7 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.9.2';
+const ASSET_VERSION = '2.9.3';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 const CARD_THUMB_EDGE = 520;        // longest side of the small thumbnail shown on grid cards
@@ -625,13 +626,14 @@ function showDocumentPages(startIndex) {
 }
 
 function createDocumentCardElement(doc, docIndex, totalDocs) {
+  const first = doc.firstPage;
+  const docKey = `d:${first.id}`;
   const card = document.createElement('div');
-  card.className = 'page-card doc-card';
+  card.className = 'page-card doc-card' + (state.selectedDocKey === docKey ? ' is-selected' : '');
   card.dataset.docIndex = docIndex;
   card.draggable = true;
   card.style.animationDelay = `${Math.min(docIndex * 35, 450)}ms`;
 
-  const first = doc.firstPage;
   const typeLabel = doc.sourceType === 'pdf' ? 'PDF' : 'IMAGE';
   const pagesWord = doc.count === 1 ? 'page' : 'pages';
   const hasMany = doc.count > 1;
@@ -643,7 +645,10 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
 
   card.innerHTML = `
     <div class="card-header">
-      <span class="page-number-tag">DOC ${docIndex + 1}</span>
+      <label class="page-number-tag" title="Type a position (1 to ${totalDocs}) and press Enter to move">
+        <span>DOC</span>
+        <input type="number" class="move-pos-input" min="1" max="${totalDocs}" value="${docIndex + 1}" inputmode="numeric" aria-label="Move document ${docIndex + 1} to position (1 to ${totalDocs})" ${totalDocs <= 1 ? 'disabled' : ''}>
+      </label>
       <span class="header-tags">
         ${croppable ? cropBadgeHtml(first) : ''}
         <span class="source-type-tag">${typeLabel}</span>
@@ -658,6 +663,12 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
            style="transform: rotate(${first.rotation}deg);"
            loading="lazy">
       <span class="doc-count-badge">${doc.count} ${pagesWord}</span>
+      <div class="doc-select-overlay">
+        <button type="button" class="doc-download-pill" title="Download this PDF directly">
+          ${DOWNLOAD_ICON}
+          <span>Download PDF</span>
+        </button>
+      </div>
     </div>
 
     <div class="card-meta">
@@ -675,9 +686,13 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
         </svg>
       </button>
 
+      <button class="action-icon-btn download-doc-btn" title="Download this document as PDF" aria-label="Download ${escapeHtml(doc.fileName)} as PDF">
+        ${DOWNLOAD_ICON}
+      </button>
+
       ${croppable ? cropButtonHtml(first) : ''}
 
-      ${hasMany ? `<button class="action-icon-btn split-btn" title="Split this document into two parts">${SPLIT_ICON}</button>` : ''}
+      ${hasMany ? `<button class="action-icon-btn split-btn" title="Split this document into parts">${SPLIT_ICON}</button>` : ''}
       ${doc.canJoinNext ? `<button class="action-icon-btn join-btn" title="Join with the next part">${JOIN_ICON}</button>` : ''}
 
       <button class="action-icon-btn move-left-btn" title="Move document earlier" ${docIndex === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
@@ -701,7 +716,29 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
     </div>
   `;
 
-  card.querySelector('.card-thumbnail-viewport').addEventListener('click', () => showDocumentPages(doc.start));
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('button, input, label.page-number-tag')) return;
+    const willSelect = !card.classList.contains('is-selected');
+    document.querySelectorAll('#page-grid .doc-card.is-selected').forEach((c) => {
+      c.classList.remove('is-selected');
+    });
+    if (willSelect) {
+      card.classList.add('is-selected');
+      state.selectedDocKey = docKey;
+    } else {
+      state.selectedDocKey = null;
+    }
+  });
+
+  card.querySelector('.doc-download-pill').addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportSingleDocument(docIndex);
+  });
+
+  card.querySelector('.download-doc-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportSingleDocument(docIndex);
+  });
 
   card.querySelector('.view-pages-btn').addEventListener('click', (e) => {
     e.stopPropagation();
@@ -747,6 +784,7 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
     removeDocumentAt(docIndex, doc);
   });
 
+  setupPositionMoveInput(card, docIndex, totalDocs, reorderDocument);
   setupDocCardDragEvents(card, docIndex);
   setupCardNameReveal(card);
   return card;
@@ -754,6 +792,79 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
 
 const SPLIT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>';
 const JOIN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M6 21V9a9 9 0 0 0 9 9"></path></svg>';
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
+
+/** Wire up the inline position number input so typing a 1-based position moves the card directly. */
+function setupPositionMoveInput(card, currentIndex, totalCount, onMove) {
+  const tag = card.querySelector('.page-number-tag');
+  const input = card.querySelector('.move-pos-input');
+  if (!input || !tag) return;
+
+  const currentPos = currentIndex + 1;
+  let handled = false;
+
+  const stopBubble = (e) => {
+    e.stopPropagation();
+  };
+  ['mousedown', 'touchstart', 'pointerdown', 'click', 'dblclick'].forEach((evt) => {
+    tag.addEventListener(evt, stopBubble);
+  });
+  input.addEventListener('dragstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  input.addEventListener('focus', () => {
+    handled = false;
+    if (typeof input.select === 'function') input.select();
+  });
+
+  const commitMove = () => {
+    if (handled) return;
+    const raw = String(input.value || '').trim();
+    if (!raw || Number(raw) === currentPos) {
+      input.value = String(currentPos);
+      return;
+    }
+    if (!/^\d+$/.test(raw)) {
+      input.value = String(currentPos);
+      showToast(`Enter a whole position number from 1 to ${totalCount}.`, 'error');
+      return;
+    }
+    const targetPos = Number(raw);
+    if (targetPos < 1 || targetPos > totalCount) {
+      input.value = String(currentPos);
+      showToast(`Position must be between 1 and ${totalCount}.`, 'error');
+      return;
+    }
+    if (targetPos === currentPos) return;
+    handled = true;
+    onMove(currentIndex, targetPos - 1);
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      commitMove();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      handled = true;
+      input.value = String(currentPos);
+      input.blur();
+    }
+  });
+
+  input.addEventListener('change', () => {
+    commitMove();
+  });
+
+  input.addEventListener('blur', () => {
+    if (!handled) {
+      input.value = String(currentPos);
+    }
+  });
+}
 
 /** Ask where to cut a multi-page document, then split it into two parts that move independently. */
 function openSplitDialog(docIndex) {
@@ -783,6 +894,7 @@ function joinDocumentParts(docIndex) {
 }
 
 function reorderDocument(fromIndex, toIndex) {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
   state.pages = DocGroups.moveDocument(state.pages, fromIndex, toIndex);
   renderPageGrid();
   showToast(`Moved Document ${fromIndex + 1} to position ${toIndex + 1}`);
@@ -853,7 +965,10 @@ function createPageCardElement(pageItem, index, totalPages) {
 
   card.innerHTML = `
     <div class="card-header">
-      <span class="page-number-tag">PAGE ${index + 1}</span>
+      <label class="page-number-tag" title="Type a position (1 to ${totalPages}) and press Enter to move">
+        <span>PAGE</span>
+        <input type="number" class="move-pos-input" min="1" max="${totalPages}" value="${index + 1}" inputmode="numeric" aria-label="Move page ${index + 1} to position (1 to ${totalPages})" ${totalPages <= 1 ? 'disabled' : ''}>
+      </label>
       <span class="header-tags">
         ${cropBadgeHtml(pageItem)}
         <span class="source-type-tag" title="${escapeHtml(pageItem.fileName)}">${sourceLabel}</span>
@@ -974,7 +1089,8 @@ function createPageCardElement(pageItem, index, totalPages) {
     removePage(index);
   });
 
-  // Drag and Drop Events
+  // Position move, Drag and Drop, and Name Reveal Events
+  setupPositionMoveInput(card, index, totalPages, reorderPage);
   setupCardDragEvents(card, index);
   setupCardNameReveal(card);
 
@@ -1577,14 +1693,41 @@ async function exportMergedPdf({ fileName } = {}) {
     showToast('Please add images or PDFs before exporting.', 'error');
     return;
   }
+  const outName = fileName || state.settings.filename || 'Merged_Document.pdf';
+  await compilePagesToPdf(state.pages, outName);
+}
 
+/** Directly build and download a single document card (or split part) as its own PDF. */
+async function exportSingleDocument(docIndex, { fileName } = {}) {
+  const docs = DocGroups.groupPagesIntoDocuments(state.pages);
+  const doc = docs[docIndex];
+  if (!doc) return;
+  const pagesToExport = state.pages.slice(doc.start, doc.end);
+  if (pagesToExport.length === 0) return;
+
+  let outName = fileName;
+  if (!outName) {
+    if (doc.partial && doc.rangeLabel) {
+      const rangeSuffix = doc.rangeLabel.replace(/\s+of\s+\d+$/i, '').replace(/\./g, '').trim().replace(/\s+/g, '_');
+      outName = FileName.cleanPdfName(`${FileName.baseName(doc.fileName)}_${rangeSuffix}`);
+    } else {
+      outName = FileName.cleanPdfName(FileName.baseName(doc.fileName));
+    }
+  } else {
+    outName = FileName.cleanPdfName(outName);
+  }
+
+  await compilePagesToPdf(pagesToExport, outName);
+}
+
+async function compilePagesToPdf(pagesToExport, outFileName) {
   showProcessingModal('Assembling PDF Document', 'Initializing output engine...', 5);
 
   try {
     const { PDFDocument, degrees, rgb, StandardFonts } = PDFLib;
     const mergedPdf = await PDFDocument.create();
 
-    const total = state.pages.length;
+    const total = pagesToExport.length;
     let watermarkFont = null;
     if (state.settings.stampPageNumbers) {
       watermarkFont = await mergedPdf.embedFont(StandardFonts.Helvetica);
@@ -1594,7 +1737,7 @@ async function exportMergedPdf({ fileName } = {}) {
     const loadedSourcePdfs = new Map();
 
     for (let i = 0; i < total; i++) {
-      const item = state.pages[i];
+      const item = pagesToExport[i];
       const progressPercent = Math.round(((i + 1) / total) * 85);
       updateProcessingProgress(`Processing Page ${i + 1} of ${total} (${item.fileName})...`, progressPercent);
 
@@ -1662,14 +1805,14 @@ async function exportMergedPdf({ fileName } = {}) {
     const downloadUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = downloadUrl;
-    a.download = fileName || state.settings.filename || 'Merged_Document.pdf';
+    a.download = outFileName || state.settings.filename || 'Merged_Document.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
 
     hideProcessingModal();
-    showToast(`PDF exported successfully (${total} pages).`);
+    showToast(`PDF exported successfully (${total} ${total === 1 ? 'page' : 'pages'}).`);
 
   } catch (err) {
     console.error('PDF export failed:', err);
