@@ -23,6 +23,8 @@ assert.strictEqual(N.readJpegOrientation(new Uint8Array([0x89, 0x50, 0x4E, 0x47]
 assert.strictEqual(N.readJpegOrientation(new Uint8Array([0xFF, 0xD8, 0xFF, 0xDA, 0, 2])), 1, 'no EXIF');
 assert.strictEqual(N.readJpegOrientation(new Uint8Array(0)), 1, 'empty');
 assert.strictEqual(N.readJpegOrientation(jpegWithOrientation(6, 'MM').slice(0, 20)), 1, 'truncated EXIF');
+assert.strictEqual(N.readJpegOrientation(new Uint8Array([0xFF, 0xD8, 0xFF, 0xE1, 0, 1, 0xFF, 0xDA])), 1, 'malformed segment length < 2');
+assert.strictEqual(N.readJpegOrientation(new Uint8Array([0xFF, 0xD8, 0xFF, 0xFF, ...jpegWithOrientation(6, 'MM').slice(2)])), 6, 'JPEG 0xFF fill bytes before marker');
 
 // isHeicLike
 assert.strictEqual(N.isHeicLike({ name: 'IMG_1.HEIC', type: '' }), true);

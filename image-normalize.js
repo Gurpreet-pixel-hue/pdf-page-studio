@@ -23,10 +23,14 @@
     while (offset + 4 <= bytes.length) {
       if (bytes[offset] !== 0xFF) return 1;
       const marker = bytes[offset + 1];
+      if (marker === 0xFF) { offset += 1; continue; } // JPEG fill byte
       if (marker === 0xDA || marker === 0xD9) return 1; // image data / end: no EXIF found
+      if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { offset += 2; continue; } // standalone marker
       const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+      if (length < 2) return 1;
+      const segEnd = Math.min(bytes.length, offset + 2 + length);
       if (marker === 0xE1 && isExifHeader(bytes, offset + 4)) {
-        return readOrientationFromTiff(bytes, offset + 10, offset + 2 + length);
+        return readOrientationFromTiff(bytes, offset + 10, segEnd);
       }
       offset += 2 + length;
     }
@@ -34,6 +38,7 @@
   }
 
   function isExifHeader(bytes, at) {
+    if (at + 6 > bytes.length) return false;
     return bytes[at] === 0x45 && bytes[at + 1] === 0x78 && bytes[at + 2] === 0x69 &&
       bytes[at + 3] === 0x66 && bytes[at + 4] === 0 && bytes[at + 5] === 0;
   }

@@ -32,7 +32,7 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.9.1';
+const ASSET_VERSION = '2.9.2';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 const CARD_THUMB_EDGE = 520;        // longest side of the small thumbnail shown on grid cards
@@ -246,45 +246,62 @@ async function handleFiles(fileList) {
 async function parsePdfFile(file) {
   const arrayBuffer = await file.arrayBuffer();
   // isEvalSupported: false closes CVE-2024-4367 (a crafted PDF running script in pdf.js < 4.2.67); the vendored pdf.js is 3.11.
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false });
-  const pdfDoc = await loadingTask.promise;
+  let pdfDoc;
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false });
+    pdfDoc = await loadingTask.promise;
+  } catch (err) {
+    if (err && err.name === 'PasswordException') {
+      err.userMessage = `${file.name}: This PDF is password protected and cannot be opened.`;
+    }
+    throw err;
+  }
   const numPages = pdfDoc.numPages;
   const pageItems = [];
 
-  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-    const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 1.2 });
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+  try {
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      try {
+        const viewport = page.getViewport({ scale: 1.2 });
 
-    await page.render({
-      canvasContext: ctx,
-      viewport: viewport
-    }).promise;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-    const thumbnailDataUrl = await canvasToObjectUrl(canvas, 'image/jpeg', 0.85);
+        await page.render({
+          canvasContext: ctx,
+          viewport: viewport
+        }).promise;
 
-    const originalViewport = page.getViewport({ scale: 1.0 });
+        const thumbnailDataUrl = await canvasToObjectUrl(canvas, 'image/jpeg', 0.85);
+        const originalViewport = page.getViewport({ scale: 1.0 });
 
-    pageItems.push({
-      id: generateId(),
-      sourceType: 'pdf',
-      sourceFile: file,
-      fileName: file.name,
-      sourcePageIndex: pageNum - 1, // 0-based
-      sourceTotalPages: numPages,
-      originalIndex: 0, // assigned in upload order by handleFiles
-      thumbnailDataUrl: thumbnailDataUrl, // a blob: URL
-      rotation: 0,
-      width: originalViewport.width,
-      height: originalViewport.height
-    });
+        pageItems.push({
+          id: generateId(),
+          sourceType: 'pdf',
+          sourceFile: file,
+          fileName: file.name,
+          sourcePageIndex: pageNum - 1, // 0-based
+          sourceTotalPages: numPages,
+          originalIndex: 0, // assigned in upload order by handleFiles
+          thumbnailDataUrl: thumbnailDataUrl, // a blob: URL
+          rotation: 0,
+          width: originalViewport.width,
+          height: originalViewport.height
+        });
+      } finally {
+        if (typeof page.cleanup === 'function') page.cleanup();
+      }
+    }
+    return pageItems;
+  } catch (err) {
+    releasePageUrls(pageItems);
+    throw err;
+  } finally {
+    if (typeof pdfDoc.destroy === 'function') pdfDoc.destroy();
   }
-
-  return pageItems;
 }
 
 /**
@@ -637,6 +654,7 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
       <img src="${pageThumbSrc(first)}"
            alt="First page of ${escapeHtml(doc.fileName)}"
            class="card-thumbnail"
+           draggable="false"
            style="transform: rotate(${first.rotation}deg);"
            loading="lazy">
       <span class="doc-count-badge">${doc.count} ${pagesWord}</span>
@@ -730,6 +748,7 @@ function createDocumentCardElement(doc, docIndex, totalDocs) {
   });
 
   setupDocCardDragEvents(card, docIndex);
+  setupCardNameReveal(card);
   return card;
 }
 
@@ -845,6 +864,7 @@ function createPageCardElement(pageItem, index, totalPages) {
       <img src="${pageThumbSrc(pageItem)}" 
            alt="Page ${index + 1}" 
            class="card-thumbnail" 
+           draggable="false"
            style="transform: rotate(${pageItem.rotation}deg);" 
            loading="lazy">
       <div class="card-zoom-overlay">
@@ -956,8 +976,170 @@ function createPageCardElement(pageItem, index, totalPages) {
 
   // Drag and Drop Events
   setupCardDragEvents(card, index);
+  setupCardNameReveal(card);
 
   return card;
+}
+
+const LONG_PRESS_MS = 350;
+const LONG_PRESS_MOVE_SLOP = 10;
+let activeLongPressEnd = null;
+
+function clearAllLongPressCards() {
+  if (activeLongPressEnd) {
+    const endFn = activeLongPressEnd;
+    activeLongPressEnd = null;
+    endFn();
+  }
+  document.querySelectorAll('.page-card.is-long-press').forEach((c) => {
+    c.classList.remove('is-long-press');
+  });
+}
+
+/**
+ * Reveal full filename on desktop hover and highlight + reveal full filename
+ * on phone long-tap while held down (dismissing as soon as the user lets go).
+ */
+function setupCardNameReveal(card) {
+  let pressTimer = null;
+  let longPressActive = false;
+  let touchPressing = false;
+  let startX = 0;
+  let startY = 0;
+  let suppressClickUntil = 0;
+
+  const clearTimer = () => {
+    if (pressTimer !== null) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  };
+
+  const endPress = () => {
+    clearTimer();
+    if (activeLongPressEnd === endPress) activeLongPressEnd = null;
+    const wasLongPress = longPressActive;
+    longPressActive = false;
+    touchPressing = false;
+    card.classList.remove('is-long-press', 'is-hovered');
+    card.classList.add('touch-released');
+    card.draggable = true;
+    if (wasLongPress) {
+      suppressClickUntil = Date.now() + 400;
+    }
+  };
+
+  const startPress = (x, y) => {
+    if (activeLongPressEnd && activeLongPressEnd !== endPress) {
+      activeLongPressEnd();
+    }
+    touchPressing = true;
+    activeLongPressEnd = endPress;
+    card.draggable = false;
+    card.classList.remove('touch-released', 'is-hovered');
+    startX = x;
+    startY = y;
+    longPressActive = false;
+    clearTimer();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      if (!touchPressing) return;
+      document.querySelectorAll('.page-card.is-long-press').forEach((c) => {
+        if (c !== card) c.classList.remove('is-long-press');
+      });
+      longPressActive = true;
+      card.classList.add('is-long-press');
+    }, LONG_PRESS_MS);
+  };
+
+  const movePress = (x, y, e) => {
+    if (!touchPressing) return;
+    if (longPressActive) {
+      if (e && e.cancelable) e.preventDefault();
+      return;
+    }
+    if (Math.hypot(x - startX, y - startY) > LONG_PRESS_MOVE_SLOP) {
+      clearTimer();
+      if (activeLongPressEnd === endPress) activeLongPressEnd = null;
+      touchPressing = false;
+      card.draggable = true;
+    }
+  };
+
+  card.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) {
+      endPress();
+      return;
+    }
+    const t = e.touches[0];
+    startPress(t.clientX, t.clientY);
+  }, { passive: true });
+
+  card.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1) {
+      endPress();
+      return;
+    }
+    const t = e.touches[0];
+    movePress(t.clientX, t.clientY, e);
+  }, { passive: false });
+
+  card.addEventListener('touchend', endPress);
+  card.addEventListener('touchcancel', endPress);
+
+  card.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' || (e.pointerType !== 'mouse' && window.innerWidth <= 768)) {
+      if (!touchPressing) startPress(e.clientX, e.clientY);
+    } else if (e.pointerType === 'mouse') {
+      card.draggable = true;
+      card.classList.remove('touch-released');
+    }
+  });
+
+  card.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch' || (e.pointerType !== 'mouse' && window.innerWidth <= 768)) {
+      movePress(e.clientX, e.clientY, null);
+    }
+  });
+
+  card.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'touch' || touchPressing) endPress();
+  });
+
+  card.addEventListener('pointercancel', (e) => {
+    if (e.pointerType === 'touch' || touchPressing) endPress();
+  });
+
+  card.addEventListener('mouseenter', () => {
+    if (!touchPressing && !card.classList.contains('touch-released')) {
+      card.classList.add('is-hovered');
+    }
+  });
+
+  card.addEventListener('mousemove', () => {
+    if (!touchPressing) {
+      card.classList.remove('touch-released');
+      card.classList.add('is-hovered');
+    }
+  });
+
+  card.addEventListener('mouseleave', () => {
+    card.classList.remove('is-hovered');
+  });
+
+  card.addEventListener('contextmenu', (e) => {
+    if (touchPressing || longPressActive || Date.now() < suppressClickUntil) {
+      e.preventDefault();
+    }
+  });
+
+  card.addEventListener('click', (e) => {
+    if (Date.now() < suppressClickUntil) {
+      e.preventDefault();
+      e.stopPropagation();
+      suppressClickUntil = 0;
+    }
+  }, true);
 }
 
 /**
@@ -1218,6 +1400,11 @@ function setupSettingsListeners() {
 
   elements.settingsCloseBtn.addEventListener('click', closeSettings);
   elements.settingsBackdrop.addEventListener('click', closeSettings);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && elements.settingsDrawer.classList.contains('active')) {
+      closeSettings();
+    }
+  });
   elements.settingsApplyBtn.addEventListener('click', () => {
     // Read input values
     const fn = FileName.cleanPdfName(elements.settingFilename.value);
@@ -1762,6 +1949,12 @@ function initializeApp() {
   setupSettingsListeners();
   setupLightboxListeners();
   setupInstallListeners();
+
+  ['touchend', 'touchcancel', 'pointerup', 'pointercancel', 'blur'].forEach((evt) => {
+    window.addEventListener(evt, () => {
+      if (activeLongPressEnd) clearAllLongPressCards();
+    }, { passive: true });
+  });
 
   // Initial State Render
   renderPageGrid();

@@ -605,6 +605,7 @@ html, body {
 .page-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-items: start;
   gap: 24px;
   padding-bottom: 80px;
 }
@@ -624,6 +625,8 @@ html, body {
               border-color 0.2s ease;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   
   /* Staggered entrance animation */
   animation: cardWaterfall 0.4s var(--spring-bounce) backwards;
@@ -644,6 +647,13 @@ html, body {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-5px);
+}
+
+.page-card.is-long-press {
+  border-color: var(--accent-terracotta);
+  box-shadow: 0 0 0 2px var(--accent-terracotta), var(--shadow-card-hover);
+  transform: translateY(-3px) scale(1.015);
+  z-index: 10;
 }
 
 .page-card:active {
@@ -815,6 +825,10 @@ html, body {
   box-shadow: var(--shadow-sm);
   border-radius: 3px;
   transition: transform 0.38s var(--spring-bounce);
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .card-thumbnail-viewport:hover .card-thumbnail {
@@ -864,6 +878,7 @@ html, body {
   padding: 9px 12px;
   border-top: 1px solid var(--border-subtle);
   background-color: var(--bg-surface);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .card-filename {
@@ -873,6 +888,39 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (hover: hover) {
+  .page-card:hover:not(.touch-released) .card-filename {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+.page-card.is-hovered:not(.touch-released) .card-filename,
+.page-card.is-long-press .card-filename {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.page-card.is-long-press .card-header {
+  background-color: var(--bg-surface-hover);
+  border-bottom-color: var(--border-strong);
+}
+
+.page-card.is-long-press .card-meta {
+  background-color: var(--bg-surface-elevated);
+  border-top-color: var(--accent-terracotta);
+}
+
+.page-card.is-long-press .card-filename {
+  color: var(--accent-terracotta-hover);
 }
 
 .card-dimensions {
@@ -1813,6 +1861,17 @@ html, body {
   /* Hide Desktop Top Buttons on Mobile */
   .desktop-only-btn {
     display: none !important;
+  }
+
+  .dropdown-menu {
+    position: fixed;
+    top: auto;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    left: 14px;
+    right: 14px;
+    min-width: 0;
+    z-index: 65;
+    transform-origin: bottom center;
   }
 
   .install-app-btn .install-btn-text {
