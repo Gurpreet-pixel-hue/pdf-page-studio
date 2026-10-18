@@ -87,6 +87,8 @@ async function scenario() {
   window.matchMedia = (q) => (/reduce/.test(q) ? { matches: true, addEventListener() {}, removeEventListener() {} } : realMatch.call(window, q));
   reorderPage(0, 4);
   const reducedGlides = glides().length;
+  const fades = [...grid().children].filter((c) => c.getAnimations().some((a) => !a.animationName && a.effect && a.effect.getKeyframes().some((k) => k.opacity !== undefined && k.opacity !== '1'))).length;
   window.matchMedia = realMatch;
-  check('reduced motion: moved cards do not glide', reducedGlides === 0, String(reducedGlides));
+  check('reduced motion: moved cards do not travel', reducedGlides === 0, String(reducedGlides));
+  check('reduced motion: moved cards fade in at the new place', fades >= 2, String(fades));
 }

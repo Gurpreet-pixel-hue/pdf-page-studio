@@ -493,8 +493,10 @@ function renderPageGrid() {
   grid.style.minHeight = '';
   scroller.scrollTop = scrollTop;
 
-  // Glide cards that changed place from where they were to where they are.
-  if (sameView && !prefersReducedMotion()) {
+  // Glide cards that changed place from where they were to where they are. With reduced motion
+  // they do not travel: they fade in at the new place, so a move still reads as a change, not a jump.
+  if (sameView) {
+    const reduced = prefersReducedMotion();
     cards.forEach((card) => {
       const before = firstRects.get(card.dataset.key);
       if (!before) return;
@@ -502,6 +504,10 @@ function renderPageGrid() {
       const dx = before.left - after.left;
       const dy = before.top - after.top;
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      if (reduced) {
+        card.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+        return;
+      }
       card.animate(
         [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
         { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
