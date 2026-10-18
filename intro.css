@@ -36,12 +36,18 @@ html.no-intro #intro,
 }
 
 #intro-gl,
-#intro-fx {
+#intro-fx,
+#intro-paper {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+}
+
+#intro-paper {
+  pointer-events: none;
+  visibility: hidden;
 }
 
 #intro-photo,

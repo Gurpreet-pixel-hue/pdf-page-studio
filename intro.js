@@ -42,7 +42,7 @@ function introMain() {
   var T = {
     strike: 1.05,    // first lightning hit
     restrike: 1.2,   // second, smaller
-    launch: 1.3,     // the photo ignites and leaves
+    launch: 1.05,    // the strike throws it: it starts crumpling and falling in the same instant
     atmo: 2.5,       // reaches the atmosphere
     impact: 3.4,     // hits the ground
     form: 3.55,      // the PDF forms
@@ -107,6 +107,7 @@ function introMain() {
     var out = function () {
       html.classList.add('no-intro');
       if (renderer) { try { renderer.dispose(); renderer.forceContextLoss(); } catch (e) { /* already gone */ } }
+      if (paper) { try { paper.renderer.dispose(); paper.renderer.forceContextLoss(); } catch (e) { /* already gone */ } }
       if (root.parentNode) root.parentNode.removeChild(root);
       unlockScroll();
       landingEntrance();
@@ -419,33 +420,196 @@ function introMain() {
 
   /* ------------------------------------------------------------ the photo */
   var P = {
-    start: [0.27, 0.33], hang: [0.41, 0.40], arc: [0.84, 0.40], low: [0.54, 0.76]
+    start: [0.20, 0.20], hang: [0.36, 0.30], low: [0.56, 0.78]
   };
   function photoBase() { return clamp(Math.min(W, H) * 0.22, 96, 210); }
 
+  // Each bolt comes from above and a little to one side of the photo; the push it gives points away from where it came from.
+  var STRIKES = [{ t0: T.strike, seed: 11, dur: 0.36, dx: -0.17 }, { t0: T.restrike, seed: 29, dur: 0.30, dx: 0.05 }];
+  function impulseDir(i) {
+    var vx = -STRIKES[i].dx * W, vy = P.hang[1] * H + 30, l = Math.hypot(vx, vy) || 1;
+    return [vx / l, vy / l];
+  }
+
   function photoState(t) {
-    var base = photoBase(), x, y, rot, s, u;
+    var base = photoBase(), xp, yp, rot, s, u;
     if (t < T.strike) {
       u = E('sine.inOut')(clamp(t / T.strike, 0, 1));
-      x = lerp(P.start[0], P.hang[0], u); y = lerp(P.start[1], P.hang[1], u);
-      y += Math.sin(t * 2.1) * 0.012; x += Math.sin(t * 1.3 + 1) * 0.006;
+      xp = (lerp(P.start[0], P.hang[0], u) + Math.sin(t * 1.3 + 1) * 0.006) * W;
+      yp = (lerp(P.start[1], P.hang[1], u) + Math.sin(t * 2.1) * 0.012) * H;
       rot = lerp(-15, -6, u) + Math.sin(t * 1.6) * 2.2; s = 1;
-    } else if (t < T.launch) {
-      var k = (t - T.strike);
-      x = P.hang[0] + wobble(t, 83, 0.4) * 0.004 * (1 - k); y = P.hang[1] + wobble(t, 71, 2.2) * 0.004 * (1 - k);
-      rot = -6 + wobble(t, 57, 1.1) * 3; s = 1 + 0.03 * Math.sin(k * 40);
     } else {
-      // one continuous curved fall from the strike to the ground: it is thrown off at speed, then drops faster and faster
-      var uu = seg(t, T.launch, T.impact), f = 0.55 * uu + 0.45 * uu * uu * uu, g = 1 - f;
-      x = g * g * P.hang[0] + 2 * g * f * P.arc[0] + f * f * P.low[0];
-      y = g * g * P.hang[1] + 2 * g * f * P.arc[1] + f * f * P.low[1];
-      rot = lerp(-6, 118, f); s = lerp(1, 0.07, Math.pow(f, 1.45));
+      // Momentum: the bolt's push is a hard shove along its own direction (fast, then it fades), on top of a fall that
+      // starts slowly and drops faster and faster toward the ground.
+      var uu = seg(t, T.launch, T.impact), f = 0.25 * uu + 0.35 * uu * uu + 0.40 * uu * uu * uu, g = 1 - f;
+      var hx = P.hang[0] * W, hy = P.hang[1] * H, lx = P.low[0] * W, ly = P.low[1] * H;
+      var d0 = impulseDir(0), reach = 0.5 * Math.hypot(lx - hx, ly - hy);
+      var cx = hx + d0[0] * reach, cy = hy + d0[1] * reach;           // starts out heading the way it was hit
+      xp = g * g * hx + 2 * g * f * cx + f * f * lx;
+      yp = g * g * hy + 2 * g * f * cy + f * f * ly;
+      var sc = Math.min(W, H);
+      var jolt = 0.10 * sc * (1 - Math.exp(-(t - T.strike) / 0.09)) * (1 - uu);
+      xp += d0[0] * jolt; yp += d0[1] * jolt;
+      if (t > T.restrike) {
+        var d1 = impulseDir(1), j2 = 0.04 * sc * (1 - Math.exp(-(t - T.restrike) / 0.08)) * (1 - uu);
+        xp += d1[0] * j2; yp += d1[1] * j2;
+      }
+      rot = lerp(-6, 70, f); s = lerp(1, 0.07, Math.pow(f, 1.45));
     }
     // heat: lightning spikes it, then it keeps building as it falls
-    var heat = 0, i, st = [T.strike, T.restrike];
-    for (i = 0; i < 2; i++) if (t >= st[i]) heat = Math.max(heat, Math.exp(-(t - st[i]) * 5.5) * (i ? 0.8 : 1));
+    var heat = 0, i;
+    for (i = 0; i < 2; i++) if (t >= STRIKES[i].t0) heat = Math.max(heat, Math.exp(-(t - STRIKES[i].t0) * 5.5) * (i ? 0.8 : 1));
     if (t >= T.launch) heat = Math.max(heat, 0.30 + 0.70 * seg(t, T.launch, T.impact, 'power1.in'));
-    return { x: x * W, y: y * H, rot: rot, s: s, w: base, heat: clamp(heat, 0, 1) };
+    return { x: xp, y: yp, rot: rot, s: s, w: base, heat: clamp(heat, 0, 1) };
+  }
+
+  /* ----------------------------------------------------------- the paper */
+  // The photo is a sheet of paper (a flat 3D mesh). The strike crumples it: creases bite in first, then the sheet collapses
+  // into a ball, while it is already being thrown and falling. Sizes are in "sheet widths"; the mesh is scaled to pixels.
+  var NX = 56, NY = 68, SHEET_H = 140 / 116;
+  var paper = null;      // { renderer, scene, camera, mesh, lights, data... } or null when unavailable
+
+  function vnoise(x, y, z) {
+    function h(i, j, k) { var n = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453; return n - Math.floor(n); }
+    var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
+    xf = xf * xf * (3 - 2 * xf); yf = yf * yf * (3 - 2 * yf); zf = zf * zf * (3 - 2 * zf);
+    var a = lerp(lerp(h(xi, yi, zi), h(xi + 1, yi, zi), xf), lerp(h(xi, yi + 1, zi), h(xi + 1, yi + 1, zi), xf), yf);
+    var b = lerp(lerp(h(xi, yi, zi + 1), h(xi + 1, yi, zi + 1), xf), lerp(h(xi, yi + 1, zi + 1), h(xi + 1, yi + 1, zi + 1), xf), yf);
+    return lerp(a, b, zf);
+  }
+
+  function makePaperTexture() {
+    return new Promise(function (resolve) {
+      try {
+        var svg = photoEl.querySelector('svg').cloneNode(true);
+        svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); svg.setAttribute('width', '464'); svg.setAttribute('height', '560');
+        var img = new Image();
+        img.onload = function () {
+          var c = document.createElement('canvas'); c.width = 464; c.height = 560;
+          c.getContext('2d').drawImage(img, 0, 0, 464, 560);
+          var tex = new THREE.CanvasTexture(c);
+          tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+          resolve(tex);
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  function buildPaper(tex) {
+    var canvas = document.getElementById('intro-paper');
+    var renderer2 = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer2.setClearColor(0x000000, 0);
+    renderer2.outputEncoding = THREE.sRGBEncoding;
+    renderer2.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer2.toneMappingExposure = 1.05;
+    var scene2 = new THREE.Scene();
+    var camera2 = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 4000);
+    camera2.position.z = 2000;
+
+    var n = (NX + 1) * (NY + 1), r = rng(5), i, j, k;
+    var flat = new Float32Array(n * 2), uv = new Float32Array(n * 2), zPat = new Float32Array(n), creaseF = new Float32Array(n),
+        chaos = new Float32Array(n * 3), ball = new Float32Array(n * 3), creaseB = new Float32Array(n);
+
+    // fold lines across the sheet: the creases that appear first
+    var folds = [];
+    for (k = 0; k < 13; k++) folds.push({ c: Math.cos(r() * 3.1416), s: 0, d: (r() * 2 - 1) * 0.85, w: 0.10 + r() * 0.20, a: (r() < 0.5 ? -1 : 1) * (0.05 + r() * 0.10) });
+    folds.forEach(function (f) { f.s = Math.sqrt(1 - f.c * f.c) * (r() < 0.5 ? -1 : 1); });
+    // flat planes cut into the ball: a crumpled ball is a lumpy polyhedron
+    var planes = [];
+    for (k = 0; k < 24; k++) {
+      var nx = r() * 2 - 1, ny = r() * 2 - 1, nz = r() * 2 - 1, l = Math.hypot(nx, ny, nz) || 1;
+      planes.push({ x: nx / l, y: ny / l, z: nz / l, o: 0.76 + r() * 0.14 });
+    }
+
+    var R0 = 0.37;
+    for (j = 0; j <= NY; j++) {
+      for (i = 0; i <= NX; i++) {
+        var id = j * (NX + 1) + i, u = -1 + 2 * i / NX, v = -1 + 2 * j / NY;
+        flat[id * 2] = u * 0.5; flat[id * 2 + 1] = v * 0.5 * SHEET_H;
+        uv[id * 2] = (u + 1) / 2; uv[id * 2 + 1] = (v + 1) / 2;
+        var z = 0, cr = 0;
+        for (k = 0; k < folds.length; k++) {
+          var f = folds[k], tent = Math.max(0, 1 - Math.abs(u * f.c + v * f.s - f.d) / f.w);
+          z += f.a * tent * tent; cr += tent * 0.8;
+        }
+        zPat[id] = z + 0.005 * (vnoise(u * 9, v * 9, 1.3) - 0.5);
+        creaseF[id] = Math.min(1, cr);
+        chaos[id * 3] = vnoise(u * 2.6, v * 2.6, 3.1) - 0.5; chaos[id * 3 + 1] = vnoise(u * 2.6 + 9, v * 2.6, 7.7) - 0.5; chaos[id * 3 + 2] = vnoise(u * 2.6, v * 2.6 + 5, 1.9) - 0.5;
+        // equal-area map of the square sheet onto a sphere, so every part of the paper ends up somewhere on the ball
+        var rr = Math.hypot(u, v) / 1.41421, cz = 1 - 2 * rr * rr, sz = Math.sqrt(Math.max(0, 1 - cz * cz)), ph = Math.atan2(v, u);
+        var dx = sz * Math.cos(ph), dy = sz * Math.sin(ph), dz = cz;
+        var rad = R0 * (1 + 0.20 * (vnoise(dx * 2.1 + 4, dy * 2.1, dz * 2.1) - 0.5) + 0.10 * (vnoise(dx * 5.5, dy * 5.5 + 3, dz * 5.5) - 0.5));
+        for (k = 0; k < planes.length; k++) {
+          var dd = dx * planes[k].x + dy * planes[k].y + dz * planes[k].z;
+          if (dd > 0.05) rad = Math.min(rad, R0 * planes[k].o / dd);
+        }
+        var ridge = 1 - Math.abs(2 * vnoise(dx * 4.3, dy * 4.3 + 2, dz * 4.3) - 1);
+        var ridge2 = 1 - Math.abs(2 * vnoise(dx * 9.5 + 1, dy * 9.5, dz * 9.5 + 6) - 1);
+        rad *= 1 - 0.05 * ridge - 0.045 * ridge2;
+        ball[id * 3] = dx * rad; ball[id * 3 + 1] = dy * rad; ball[id * 3 + 2] = dz * rad;
+        creaseB[id] = Math.min(1, Math.pow(ridge, 3) + 0.6 * Math.pow(ridge2, 4));
+      }
+    }
+    var idx = [];
+    for (j = 0; j < NY; j++) for (i = 0; i < NX; i++) {
+      var a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1;
+      idx.push(a, b, d, a, d, c);
+    }
+    var geo = new THREE.BufferGeometry();
+    var pos = new Float32Array(n * 3), col = new Float32Array(n * 3).fill(1), emb = new Float32Array(n);
+    var posAttr = new THREE.BufferAttribute(pos, 3); posAttr.setUsage(THREE.DynamicDrawUsage);
+    var colAttr = new THREE.BufferAttribute(col, 3); colAttr.setUsage(THREE.DynamicDrawUsage);
+    var embAttr = new THREE.BufferAttribute(emb, 1); embAttr.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('position', posAttr); geo.setAttribute('color', colAttr); geo.setAttribute('aEmber', embAttr);
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+
+    var mat = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.92, metalness: 0, alphaTest: 0.5 });
+    mat.onBeforeCompile = function (sh) {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aEmber;\nvarying float vEmber;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmber = aEmber;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vEmber;')
+        .replace('#include <map_fragment>', '#include <map_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb = vec3(0.86, 0.83, 0.78);')   // the back of the print is plain paper
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.34, 0.06) * vEmber * 0.95;');
+    };
+    var mesh = new THREE.Mesh(geo, mat);
+    scene2.add(mesh);
+    var key = new THREE.DirectionalLight(0xfff2e2, 1.0); key.position.set(-0.5, 0.8, 1.0); scene2.add(key);
+    var hemi = new THREE.HemisphereLight(0xc4d0ff, 0x4a362c, 0.7); scene2.add(hemi);
+    var fire = new THREE.PointLight(0xff7a2a, 0, 0, 0); scene2.add(fire);
+    paper = { renderer: renderer2, scene: scene2, camera: camera2, mesh: mesh, key: key, fire: fire, canvas: canvas, n: n,
+              flat: flat, zPat: zPat, creaseF: creaseF, chaos: chaos, ball: ball, creaseB: creaseB, pos: pos, col: col, emb: emb, posAttr: posAttr, colAttr: colAttr, embAttr: embAttr };
+  }
+
+  function updatePaper(t, ph, strikeFlash) {
+    var pp = paper, tp = Math.max(0, t - T.strike);
+    // crease first (fast), then the whole sheet collapses; a small stutter makes the crunch feel violent
+    var w = seg(t, T.strike, T.strike + 0.42, 'power2.out');
+    var c = seg(t, T.strike + 0.04, T.strike + 0.80, 'power3.inOut');
+    c = clamp(c + 0.035 * Math.sin(tp * 38) * Math.sin(Math.PI * c), 0, 1);
+    var mid = Math.sin(Math.PI * c), shrink = 1 - 0.30 * w, pos = pp.pos, col = pp.col, emb = pp.emb, n = pp.n, i;
+    for (i = 0; i < n; i++) {
+      var fx0 = pp.flat[i * 2] * shrink, fy0 = pp.flat[i * 2 + 1] * shrink, fz0 = pp.zPat[i] * w * 1.15;
+      pos[i * 3]     = lerp(fx0, pp.ball[i * 3], c) + pp.chaos[i * 3] * mid * 0.34;
+      pos[i * 3 + 1] = lerp(fy0, pp.ball[i * 3 + 1], c) + pp.chaos[i * 3 + 1] * mid * 0.34;
+      pos[i * 3 + 2] = lerp(fz0, pp.ball[i * 3 + 2], c) + pp.chaos[i * 3 + 2] * mid * 0.34;
+      var shade = 1 - 0.42 * (pp.creaseF[i] * w * (1 - c) + pp.creaseB[i] * c);
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = shade;
+      emb[i] = ph.heat * (0.15 + 0.85 * (pp.creaseF[i] * (1 - c) + pp.creaseB[i] * c)) * (0.35 + 0.65 * Math.max(w, c));
+    }
+    pp.posAttr.needsUpdate = true; pp.colAttr.needsUpdate = true; pp.embAttr.needsUpdate = true;
+    pp.mesh.geometry.computeBoundingSphere();
+    // it tumbles from the moment it is hit
+    var ax = 0.10 * Math.sin(t * 1.3) + 2.4 * tp + 1.1 * tp * tp, ay = 0.12 * Math.sin(t * 0.9 + 1) + 1.5 * tp + 0.8 * tp * tp;
+    pp.mesh.rotation.set(ax, ay, -ph.rot * Math.PI / 180, 'ZYX');
+    pp.mesh.position.set(ph.x - W / 2, H / 2 - ph.y, 0);
+    pp.mesh.scale.setScalar(ph.w * ph.s);
+    pp.mesh.material.opacity = 1;
+    pp.key.intensity = 1.0 + strikeFlash * 0.7;
+    pp.fire.position.set(ph.x - W / 2, H / 2 - ph.y - ph.w * ph.s * 0.4, 220);
+    pp.fire.intensity = ph.heat * 1.5;
+    pp.renderer.render(pp.scene, pp.camera);
   }
 
   /* ------------------------------------------------- fixed random effects */
@@ -487,7 +651,7 @@ function introMain() {
   }
   var BOLT_STYLES = ['rgba(194,65,12,A)', 'rgba(255,160,70,A)', 'rgba(255,248,236,A)'];
   function drawLightning(t, ph) {
-    var strikes = [{ t0: T.strike, seed: 11, dur: 0.36 }, { t0: T.restrike, seed: 29, dur: 0.30 }];
+    var strikes = STRIKES;
     var flash = 0;
     for (var s = 0; s < strikes.length; s++) {
       var st = strikes[s], u = (t - st.t0) / st.dur;
@@ -495,7 +659,7 @@ function introMain() {
       var env = Math.pow(1 - u, 1.6) * (0.62 + 0.38 * Math.sin(u * 70));
       flash = Math.max(flash, Math.pow(1 - u, 2.2));
       var r = rng(st.seed);
-      var x0 = ph.x + (r() - 0.5) * W * 0.30, y0 = -30;
+      var x0 = P.hang[0] * W + st.dx * W, y0 = -30;
       var main = boltPath(r, x0, y0, ph.x, ph.y, H * 0.20, 7);
       strokePath(main, [38, 14, 4.2], BOLT_STYLES, Math.min(1, env * 1.15));
       for (var b = 0; b < 7; b++) {
@@ -728,6 +892,12 @@ function introMain() {
 
     /* ---- DOM: the photo ---- */
     var showPhoto = t < T.impact + 0.02;
+    if (paper) {
+      photoEl.style.visibility = 'hidden';
+      paper.canvas.style.visibility = showPhoto ? 'visible' : 'hidden';
+      paper.canvas.style.opacity = String(seg(t, 0, 0.5));
+      if (showPhoto) updatePaper(t, ph, strikeFlash);
+    } else {
     photoEl.style.visibility = showPhoto ? 'visible' : 'hidden';
     if (showPhoto) {
       var pw = ph.w, phh = ph.w * 140 / 116;
@@ -736,6 +906,7 @@ function introMain() {
       photoEl.style.transform = 'translate3d(' + ph.x.toFixed(1) + 'px,' + ph.y.toFixed(1) + 'px,0) translate(-50%,-50%) rotate(' + ph.rot.toFixed(2) + 'deg) scale(' + ph.s.toFixed(3) + ')';
       var br = 1 + ph.heat * 0.42;
       photoEl.style.filter = 'brightness(' + br.toFixed(2) + ') saturate(' + (1 + ph.heat * 0.3).toFixed(2) + ') drop-shadow(0 0 ' + (8 + ph.heat * 34).toFixed(0) + 'px rgba(255,' + Math.round(150 + 90 * ph.heat) + ',' + Math.round(60 + 70 * ph.heat) + ',' + (0.35 + 0.6 * ph.heat).toFixed(2) + '))';
+    }
     }
 
     /* ---- DOM: the PDF ---- */
@@ -781,6 +952,12 @@ function introMain() {
       camera.aspect = W / H; camera.fov = W < H ? 52 : 38; camera.updateProjectionMatrix();
       uniforms.px.value = dpr;
     }
+    if (paper) {
+      paper.renderer.setPixelRatio(dpr);
+      paper.renderer.setSize(W, H, false);
+      paper.camera.left = -W / 2; paper.camera.right = W / 2; paper.camera.top = H / 2; paper.camera.bottom = -H / 2;
+      paper.camera.updateProjectionMatrix();
+    }
     pdfMetrics();
     if (renderer) frame(currentT);
   }
@@ -819,7 +996,10 @@ function introMain() {
       } catch (e) { // no WebGL: never block the site
         finish(true); return;
       }
-      start();
+      makePaperTexture().then(function (tex) {
+        try { if (tex) buildPaper(tex); } catch (e) { paper = null; }   // without it the photo is drawn flat, as plain SVG
+        start();
+      });
     })
     .catch(function () { finish(true); });
 

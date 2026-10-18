@@ -15,7 +15,9 @@ async function scenario() {
   await sleep(1500);
   const still = document.getElementById('intro');
   check('the sequence is running mid-way (not instantly dismissed)', !!still && !html.classList.contains('no-intro'));
-  check('the photo is on screen mid-sequence', getComputedStyle(document.getElementById('intro-photo')).visibility === 'visible');
+  const paper = document.getElementById('intro-paper'), flatPhoto = document.getElementById('intro-photo');
+  check('the photo (a 3D sheet of paper) is on screen mid-sequence', getComputedStyle(paper).visibility === 'visible' || getComputedStyle(flatPhoto).visibility === 'visible');
+  check('the paper has its own 3D canvas, drawn above the fire', paper.width > 0 && getComputedStyle(paper).visibility === 'visible');
 
   await waitFor(() => !document.getElementById('intro'), 20000);
   check('the overlay removes itself when the sequence ends', !document.getElementById('intro'));
