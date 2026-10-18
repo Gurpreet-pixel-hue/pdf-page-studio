@@ -420,7 +420,7 @@ function introMain() {
 
   /* ------------------------------------------------------------ the photo */
   var P = {
-    start: [0.20, 0.20], hang: [0.36, 0.30], low: [0.56, 0.78]
+    start: [0.20, 0.20], hang: [0.36, 0.30], arc: [0.84, 0.36], low: [0.56, 0.78]
   };
   function photoBase() { return clamp(Math.min(W, H) * 0.22, 96, 210); }
 
@@ -443,8 +443,8 @@ function introMain() {
       // starts slowly and drops faster and faster toward the ground.
       var uu = seg(t, T.launch, T.impact), f = 0.25 * uu + 0.35 * uu * uu + 0.40 * uu * uu * uu, g = 1 - f;
       var hx = P.hang[0] * W, hy = P.hang[1] * H, lx = P.low[0] * W, ly = P.low[1] * H;
-      var d0 = impulseDir(0), reach = 0.5 * Math.hypot(lx - hx, ly - hy);
-      var cx = hx + d0[0] * reach, cy = hy + d0[1] * reach;           // starts out heading the way it was hit
+      var d0 = impulseDir(0);
+      var cx = P.arc[0] * W, cy = P.arc[1] * H;                      // it swings wide to the side, then curves back down onto Earth
       xp = g * g * hx + 2 * g * f * cx + f * f * lx;
       yp = g * g * hy + 2 * g * f * cy + f * f * ly;
       var sc = Math.min(W, H);
@@ -466,7 +466,7 @@ function introMain() {
   /* ----------------------------------------------------------- the paper */
   // The photo is a sheet of paper (a flat 3D mesh). The strike crumples it: creases bite in first, then the sheet collapses
   // into a ball, while it is already being thrown and falling. Sizes are in "sheet widths"; the mesh is scaled to pixels.
-  var NX = 56, NY = 68, SHEET_H = 140 / 116;
+  var NX = 84, NY = 100, SHEET_H = 140 / 116;
   var paper = null;      // { renderer, scene, camera, mesh, lights, data... } or null when unavailable
 
   function vnoise(x, y, z) {
@@ -486,7 +486,9 @@ function introMain() {
         var img = new Image();
         img.onload = function () {
           var c = document.createElement('canvas'); c.width = 464; c.height = 560;
-          c.getContext('2d').drawImage(img, 0, 0, 464, 560);
+          var cx2 = c.getContext('2d');
+          cx2.fillStyle = '#fffdf9'; cx2.fillRect(0, 0, 464, 560);   // opaque: transparent corners would become holes once the edge is gathered
+          cx2.drawImage(img, 0, 0, 464, 560);
           var tex = new THREE.CanvasTexture(c);
           tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
           resolve(tex);
@@ -503,13 +505,13 @@ function introMain() {
     renderer2.setClearColor(0x000000, 0);
     renderer2.outputEncoding = THREE.sRGBEncoding;
     renderer2.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer2.toneMappingExposure = 1.05;
+    renderer2.toneMappingExposure = 1.0;
     var scene2 = new THREE.Scene();
     var camera2 = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 4000);
     camera2.position.z = 2000;
 
     var n = (NX + 1) * (NY + 1), r = rng(5), i, j, k;
-    var flat = new Float32Array(n * 2), uv = new Float32Array(n * 2), zPat = new Float32Array(n), creaseF = new Float32Array(n),
+    var flat = new Float32Array(n * 2), uv = new Float32Array(n * 2), zPat = new Float32Array(n), creaseF = new Float32Array(n), back = new Float32Array(n),
         chaos = new Float32Array(n * 3), ball = new Float32Array(n * 3), creaseB = new Float32Array(n);
 
     // fold lines across the sheet: the creases that appear first
@@ -537,8 +539,9 @@ function introMain() {
         zPat[id] = z + 0.005 * (vnoise(u * 9, v * 9, 1.3) - 0.5);
         creaseF[id] = Math.min(1, cr);
         chaos[id * 3] = vnoise(u * 2.6, v * 2.6, 3.1) - 0.5; chaos[id * 3 + 1] = vnoise(u * 2.6 + 9, v * 2.6, 7.7) - 0.5; chaos[id * 3 + 2] = vnoise(u * 2.6, v * 2.6 + 5, 1.9) - 0.5;
-        // equal-area map of the square sheet onto a sphere, so every part of the paper ends up somewhere on the ball
-        var rr = Math.hypot(u, v) / 1.41421, cz = 1 - 2 * rr * rr, sz = Math.sqrt(Math.max(0, 1 - cz * cz)), ph = Math.atan2(v, u);
+        // Equal-area map of the square sheet onto a CLOSED sphere: the sheet's centre is one pole and its whole edge is
+        // gathered into the opposite pole, like a bag pulled shut, so no part of the surface is left open.
+        var rr = Math.max(Math.abs(u), Math.abs(v)), cz = 1 - 2 * rr * rr, sz = Math.sqrt(Math.max(0, 1 - cz * cz)), ph = Math.atan2(v, u);
         var dx = sz * Math.cos(ph), dy = sz * Math.sin(ph), dz = cz;
         var rad = R0 * (1 + 0.20 * (vnoise(dx * 2.1 + 4, dy * 2.1, dz * 2.1) - 0.5) + 0.10 * (vnoise(dx * 5.5, dy * 5.5 + 3, dz * 5.5) - 0.5));
         for (k = 0; k < planes.length; k++) {
@@ -547,9 +550,10 @@ function introMain() {
         }
         var ridge = 1 - Math.abs(2 * vnoise(dx * 4.3, dy * 4.3 + 2, dz * 4.3) - 1);
         var ridge2 = 1 - Math.abs(2 * vnoise(dx * 9.5 + 1, dy * 9.5, dz * 9.5 + 6) - 1);
-        rad *= 1 - 0.05 * ridge - 0.045 * ridge2;
+        rad *= 1 - 0.04 * ridge - 0.026 * ridge2 - 0.085 * Math.pow(creaseF[id], 1.4);
+        back[id] = Math.min(1, Math.max(0, (vnoise(dx * 2.6 + 8, dy * 2.6, dz * 2.6) - 0.46) / 0.08));
         ball[id * 3] = dx * rad; ball[id * 3 + 1] = dy * rad; ball[id * 3 + 2] = dz * rad;
-        creaseB[id] = Math.min(1, Math.pow(ridge, 3) + 0.6 * Math.pow(ridge2, 4));
+        creaseB[id] = Math.min(1, Math.pow(ridge, 3) + 0.6 * Math.pow(ridge2, 4) + 0.7 * creaseF[id]);
       }
     }
     var idx = [];
@@ -559,26 +563,30 @@ function introMain() {
     }
     var geo = new THREE.BufferGeometry();
     var pos = new Float32Array(n * 3), col = new Float32Array(n * 3).fill(1), emb = new Float32Array(n);
+    var backAttr = new THREE.BufferAttribute(back, 1);
     var posAttr = new THREE.BufferAttribute(pos, 3); posAttr.setUsage(THREE.DynamicDrawUsage);
     var colAttr = new THREE.BufferAttribute(col, 3); colAttr.setUsage(THREE.DynamicDrawUsage);
     var embAttr = new THREE.BufferAttribute(emb, 1); embAttr.setUsage(THREE.DynamicDrawUsage);
-    geo.setAttribute('position', posAttr); geo.setAttribute('color', colAttr); geo.setAttribute('aEmber', embAttr);
+    geo.setAttribute('position', posAttr); geo.setAttribute('color', colAttr); geo.setAttribute('aEmber', embAttr); geo.setAttribute('aBack', backAttr);
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geo.setIndex(idx);
 
-    var mat = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.92, metalness: 0, alphaTest: 0.5 });
+    var uBack = { value: 0 };
+    var mat = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.92, metalness: 0 });
     mat.onBeforeCompile = function (sh) {
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aEmber;\nvarying float vEmber;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmber = aEmber;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vEmber;')
-        .replace('#include <map_fragment>', '#include <map_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb = vec3(0.86, 0.83, 0.78);')   // the back of the print is plain paper
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.34, 0.06) * vEmber * 0.95;');
+      sh.uniforms.uBack = uBack;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aEmber;\nattribute float aBack;\nvarying float vEmber;\nvarying float vBack;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmber = aEmber;\nvBack = aBack;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vEmber;\nvarying float vBack;\nuniform float uBack;')
+        // the back of the print is plain paper, and folded-over patches show it too
+        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.83, 0.78), max(gl_FrontFacing ? 0.0 : 1.0, smoothstep(0.35, 0.65, vBack * uBack)));')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.34, 0.06) * vEmber * 0.6;');
     };
     var mesh = new THREE.Mesh(geo, mat);
     scene2.add(mesh);
-    var key = new THREE.DirectionalLight(0xfff2e2, 1.0); key.position.set(-0.5, 0.8, 1.0); scene2.add(key);
-    var hemi = new THREE.HemisphereLight(0xc4d0ff, 0x4a362c, 0.7); scene2.add(hemi);
+    var key = new THREE.DirectionalLight(0xfff2e2, 1.25); key.position.set(-0.5, 0.8, 1.0); scene2.add(key);
+    var hemi = new THREE.HemisphereLight(0xc4d0ff, 0x4a362c, 0.55); scene2.add(hemi);
     var fire = new THREE.PointLight(0xff7a2a, 0, 0, 0); scene2.add(fire);
-    paper = { renderer: renderer2, scene: scene2, camera: camera2, mesh: mesh, key: key, fire: fire, canvas: canvas, n: n,
+    paper = { uBack: uBack, renderer: renderer2, scene: scene2, camera: camera2, mesh: mesh, key: key, fire: fire, canvas: canvas, n: n,
               flat: flat, zPat: zPat, creaseF: creaseF, chaos: chaos, ball: ball, creaseB: creaseB, pos: pos, col: col, emb: emb, posAttr: posAttr, colAttr: colAttr, embAttr: embAttr };
   }
 
@@ -594,9 +602,9 @@ function introMain() {
       pos[i * 3]     = lerp(fx0, pp.ball[i * 3], c) + pp.chaos[i * 3] * mid * 0.34;
       pos[i * 3 + 1] = lerp(fy0, pp.ball[i * 3 + 1], c) + pp.chaos[i * 3 + 1] * mid * 0.34;
       pos[i * 3 + 2] = lerp(fz0, pp.ball[i * 3 + 2], c) + pp.chaos[i * 3 + 2] * mid * 0.34;
-      var shade = 1 - 0.42 * (pp.creaseF[i] * w * (1 - c) + pp.creaseB[i] * c);
+      var shade = 1 - 0.50 * (pp.creaseF[i] * w * (1 - c) + pp.creaseB[i] * c);
       col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = shade;
-      emb[i] = ph.heat * (0.15 + 0.85 * (pp.creaseF[i] * (1 - c) + pp.creaseB[i] * c)) * (0.35 + 0.65 * Math.max(w, c));
+      emb[i] = ph.heat * (0.10 + 0.40 * (pp.creaseF[i] * (1 - c) + pp.creaseB[i] * c)) * (0.35 + 0.65 * Math.max(w, c));
     }
     pp.posAttr.needsUpdate = true; pp.colAttr.needsUpdate = true; pp.embAttr.needsUpdate = true;
     pp.mesh.geometry.computeBoundingSphere();
@@ -605,7 +613,7 @@ function introMain() {
     pp.mesh.rotation.set(ax, ay, -ph.rot * Math.PI / 180, 'ZYX');
     pp.mesh.position.set(ph.x - W / 2, H / 2 - ph.y, 0);
     pp.mesh.scale.setScalar(ph.w * ph.s);
-    pp.mesh.material.opacity = 1;
+    pp.uBack.value = c;
     pp.key.intensity = 1.0 + strikeFlash * 0.7;
     pp.fire.position.set(ph.x - W / 2, H / 2 - ph.y - ph.w * ph.s * 0.4, 220);
     pp.fire.intensity = ph.heat * 1.5;
