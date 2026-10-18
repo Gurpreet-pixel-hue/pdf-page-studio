@@ -15,19 +15,91 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PDF Studio">
-  <link rel="manifest" href="manifest.json?v=2.9.3">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.9.3">
+  <link rel="manifest" href="manifest.json?v=2.10.0">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.10.0">
 
   <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2.9.3">
+  <link rel="stylesheet" href="styles.css?v=2.10.0">
+  <link rel="stylesheet" href="intro.css?v=2.10.0">
+  <noscript><style>#intro { display: none !important; }</style></noscript>
+  <script>
+    /* Opening sequence: decide before first paint so the landing page never flashes.
+       Skipped for ?fresh (Start over) and ?nointro. Reduced motion gets a short calm fade. */
+    (function () {
+      var html = document.documentElement, q = window.location.search;
+      if (/[?&](nointro|fresh)(=|&|$)/.test(q)) { html.classList.add('no-intro'); return; }
+      var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var scripts = ['intro.js?v=2.10.0'];
+      if (calm) html.classList.add('intro-reduced');
+      else {
+        window.__introVersion = '?v=2.10.0';
+        ['earth-day', 'earth-night', 'earth-clouds'].forEach(function (n) {
+          var l = document.createElement('link'); l.rel = 'preload'; l.as = 'image'; l.href = 'assets/intro/' + n + '.jpg?v=2.10.0'; document.head.appendChild(l);
+        });
+        scripts = ['vendor/three.min.js', 'vendor/gsap.min.js'].concat(scripts);
+      }
+      scripts.forEach(function (src) {
+        var s = document.createElement('script'); s.src = src; s.async = false; document.head.appendChild(s);
+      });
+    })();
+  </script>
   <script src="vendor/pdf-lib.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
 </head>
 <body>
+  <!-- Opening sequence (intro.css / intro.js): removed from the page when it ends or is skipped -->
+  <div id="intro" role="status" aria-label="Loading PDF Page Studio">
+    <div id="intro-stage">
+      <canvas id="intro-gl"></canvas>
+      <canvas id="intro-fx"></canvas>
+
+      <div id="intro-photo">
+        <svg viewBox="-58 -70 116 140" aria-hidden="true">
+          <defs>
+            <linearGradient id="introSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6d9bd"/><stop offset="1" stop-color="#fbeedd"/></linearGradient>
+          </defs>
+          <rect x="-58" y="-70" width="116" height="140" rx="5" fill="#fffdf9"/>
+          <rect x="-50" y="-62" width="100" height="100" rx="2.5" fill="url(#introSky)"/>
+          <circle cx="22" cy="-34" r="11" fill="#c2410c"/>
+          <path d="M-50 38 L-22 -8 L-4 14 L14 -12 L50 38 Z" fill="#857e75"/>
+          <path d="M-50 38 L-22 -8 L-16 0 L-30 38 Z" fill="#6b655d"/>
+          <path d="M14 -12 L24 4 L8 -2 Z" fill="#f4efe6" opacity=".9"/>
+          <rect x="-50" y="46" width="44" height="5" rx="2.5" fill="#d5cbbe"/>
+          <rect x="-50" y="56" width="26" height="4" rx="2" fill="#e6dfd3"/>
+        </svg>
+      </div>
+
+      <div id="intro-pdf">
+        <div id="intro-pdf-back2" class="intro-pg"><svg viewBox="96 14 132 166" aria-hidden="true"><rect x="104" y="30" width="104" height="140" rx="9" fill="#e9e1d1" transform="rotate(-6 156 100)"/></svg></div>
+        <div id="intro-pdf-back1" class="intro-pg"><svg viewBox="96 14 132 166" aria-hidden="true"><rect x="110" y="26" width="104" height="140" rx="9" fill="#f3eee4" transform="rotate(-2.5 160 96)"/></svg></div>
+        <div id="intro-pdf-front" class="intro-pg">
+          <svg viewBox="96 14 132 166" aria-hidden="true">
+            <path id="intro-page-face" d="M120 22 H186 L218 54 V154 a9 9 0 0 1 -9 9 H120 a9 9 0 0 1 -9 -9 V31 a9 9 0 0 1 9 -9 Z" fill="#ffffff" stroke="#d5cbbe" stroke-width="1.2"/>
+            <path id="intro-page-fold" d="M186 22 V45 a9 9 0 0 0 9 9 H218 Z" fill="#e6dfd3"/>
+            <g id="intro-page-art">
+              <rect x="126" y="62" width="48" height="9" rx="3" fill="#c2410c"/>
+              <rect x="126" y="80" width="78" height="5" rx="2.5" fill="#d5cbbe"/>
+              <rect x="126" y="91" width="78" height="5" rx="2.5" fill="#d5cbbe"/>
+              <rect x="126" y="102" width="52" height="5" rx="2.5" fill="#d5cbbe"/>
+              <rect x="126" y="116" width="78" height="30" rx="4" fill="#f7f4ed" stroke="#e6dfd3"/>
+              <circle cx="190" cy="125" r="4.5" fill="#c2410c"/>
+              <path d="M130 144 L146 128 L156 138 L168 126 L200 144 Z" fill="#857e75"/>
+              <rect x="112" y="150" width="54" height="22" rx="6" fill="#1c1917"/>
+              <text x="139" y="165.5" text-anchor="middle" font-family="Menlo, ui-monospace, monospace" font-weight="700" font-size="12" fill="#fbfaf7" letter-spacing="1.2">PDF</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div id="intro-wordmark">PDF PAGE STUDIO<small>Sequential Document Assembler</small></div>
+    </div>
+    <button id="intro-skip" type="button" aria-label="Skip the opening animation">Skip</button>
+  </div>
+
   <!-- Global Application Wrapper -->
   <div class="app-container">
     
@@ -708,7 +780,7 @@
         <div class="install-modal-header">
           <div class="install-header-left">
             <div class="install-app-icon-preview">
-              <img src="assets/icon-192.png?v=2.9.3" alt="PDF Studio Icon" width="38" height="38">
+              <img src="assets/icon-192.png?v=2.10.0" alt="PDF Studio Icon" width="38" height="38">
             </div>
             <div>
               <h3 class="install-modal-title">Add PDF Page Studio</h3>
@@ -796,19 +868,19 @@
 
   </div>
 
-  <script src="crop-geometry.js?v=2.9.3"></script>
-  <script src="image-normalize.js?v=2.9.3"></script>
-  <script src="crop-state.js?v=2.9.3"></script>
-  <script src="doc-groups.js?v=2.9.3"></script>
-  <script src="crop-editor.js?v=2.9.3"></script>
-  <script src="page-detect.js?v=2.9.3"></script>
-  <script src="file-name.js?v=2.9.3"></script>
-  <script src="split-dialog.js?v=2.9.3"></script>
-  <script src="page-finder.js?v=2.9.3"></script>
-  <script src="page-finder-ui.js?v=2.9.3"></script>
-  <script src="section-detect.js?v=2.9.3"></script>
-  <script src="index-scan.js?v=2.9.3"></script>
-  <script src="export-name-dialog.js?v=2.9.3"></script>
-  <script src="app.js?v=2.9.3"></script>
+  <script src="crop-geometry.js?v=2.10.0"></script>
+  <script src="image-normalize.js?v=2.10.0"></script>
+  <script src="crop-state.js?v=2.10.0"></script>
+  <script src="doc-groups.js?v=2.10.0"></script>
+  <script src="crop-editor.js?v=2.10.0"></script>
+  <script src="page-detect.js?v=2.10.0"></script>
+  <script src="file-name.js?v=2.10.0"></script>
+  <script src="split-dialog.js?v=2.10.0"></script>
+  <script src="page-finder.js?v=2.10.0"></script>
+  <script src="page-finder-ui.js?v=2.10.0"></script>
+  <script src="section-detect.js?v=2.10.0"></script>
+  <script src="index-scan.js?v=2.10.0"></script>
+  <script src="export-name-dialog.js?v=2.10.0"></script>
+  <script src="app.js?v=2.10.0"></script>
 </body>
 </html>

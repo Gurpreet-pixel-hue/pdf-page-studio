@@ -1,0 +1,130 @@
+/* ==========================================================================
+   Opening sequence: a photo drifts through space, is struck by lightning, falls
+   to Earth as a meteor and lands as a PDF that opens into the landing page.
+   Drawn by intro.js. Everything here is scoped to #intro.
+   ========================================================================== */
+
+#intro {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  overflow: hidden;
+  background: #02030a;
+  color: #fbfaf7;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  /* Failsafe: if the script never runs or stalls, the overlay lets go on its own and never traps the site. */
+  animation: introFailsafe 0.01s linear 14s forwards;
+}
+
+@keyframes introFailsafe {
+  to { visibility: hidden; pointer-events: none; }
+}
+
+/* Skipped or finished: never paint it, so the landing page is the first thing seen. */
+html.no-intro #intro,
+#intro[hidden] {
+  display: none;
+}
+
+#intro-stage {
+  position: absolute;
+  inset: -7%;               /* spare edge so a shake never shows a gap */
+  will-change: transform;
+}
+
+#intro-gl,
+#intro-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#intro-photo,
+#intro-pdf {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+  visibility: hidden;
+}
+
+#intro-photo svg,
+#intro-pdf svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+#intro-wordmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-display, 'Syne', sans-serif);
+  font-weight: 800;
+  letter-spacing: 0.34em;
+  font-size: clamp(13px, 1.7vw, 22px);
+  color: #fbfaf7;
+  text-shadow: 0 0 24px rgba(255, 150, 70, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#intro-wordmark small {
+  display: block;
+  margin-top: 0.7em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 400;
+  font-size: 0.5em;
+  letter-spacing: 0.28em;
+  color: #e0a070;
+}
+
+#intro-skip {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  z-index: 2;
+  appearance: none;
+  border: 1px solid rgba(251, 250, 247, 0.28);
+  background: rgba(10, 8, 8, 0.45);
+  color: rgba(251, 250, 247, 0.85);
+  font: 600 11px/1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 9px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  opacity: 0;
+}
+
+#intro-skip:hover,
+#intro-skip:focus-visible {
+  background: rgba(194, 65, 12, 0.85);
+  border-color: rgba(255, 190, 140, 0.8);
+  color: #fff;
+  outline: none;
+}
+
+/* Reduced motion: no flying, shaking or flashing; a short calm fade instead. */
+@media (prefers-reduced-motion: reduce) {
+  #intro-skip { transition: none; }
+}
+
+.intro-pg {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 55%;
+}

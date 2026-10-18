@@ -17,6 +17,8 @@ const ROOT = process.env.UI_CHECK_ROOT || path.resolve(__dirname, '..');
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const FIXTURES = process.env.UI_CHECK_FIXTURES || '';
 const scenarioPath = process.argv[2];
+// The opening animation is skipped for UI scenarios unless one asks for it (UI_CHECK_QUERY=introcheck, UI_CHECK_WEBGL=1).
+const QUERY = process.env.UI_CHECK_QUERY === undefined ? 'nointro' : process.env.UI_CHECK_QUERY;
 const timeoutMs = Number(process.argv[3] || 90000);
 if (!scenarioPath) { console.error('usage: node tools/ui-check.js <scenario.js> [timeoutMs]'); process.exit(2); }
 
@@ -48,7 +50,8 @@ function handle(req, res) {
   const appPort = server.address().port;
   const debugPort = 9300 + Math.floor(Math.random() * 500);
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-check-'));
-  const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+  const webgl = process.env.UI_CHECK_WEBGL ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] : ['--disable-gpu'];
+  const chrome = spawn(CHROME, ['--headless=new', ...webgl, `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
   let exitCode = 1;
   try {
     let targets = [];
@@ -67,7 +70,7 @@ function handle(req, res) {
 
     await send('Page.enable');
     if (process.env.UI_CHECK_VIEWPORT) { const [w, h] = process.env.UI_CHECK_VIEWPORT.split('x').map(Number); await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }); }
-    await send('Page.navigate', { url: `http://127.0.0.1:${appPort}/__harness.html` });
+    await send('Page.navigate', { url: `http://127.0.0.1:${appPort}/__harness.html${QUERY ? '?' + QUERY : ''}` });
 
     const start = Date.now();
     let log = null;

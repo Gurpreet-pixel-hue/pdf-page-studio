@@ -32,6 +32,8 @@ pdf-page-studio/
 ├── index-scan.js                 # Reads a photographed contents table: ruled columns, entry count, entry rows (RGBA analysis)
 ├── page-finder-ui.js             # The Find page numbers dialog: choose, scan, result, picker, warnings, copy
 ├── export-name-dialog.js         # 'Name your PDF' dialog shown by Export: prefilled, live preview, Esc cancels, Enter exports
+├── intro.js / intro.css          # Opening sequence on every visit: photo, lightning, meteor, Earth, impact, PDF opens into the landing page
+├── assets/intro/                 # NASA Earth textures for the sequence: day (Blue Marble), night lights (Black Marble), clouds
 ├── split-dialog.js               # Split dialog: tap between thumbnails or type a page number to choose the cut
 ├── page-detect.js                # Corner-model pre/post-processing and the lazy ONNX Runtime Web detector
 ├── models/
@@ -39,6 +41,7 @@ pdf-page-studio/
 │   ├── section-features.ort      # MobileNetV2 features of a page's top strip for Find page numbers (8.9 MB, ORT format)
 │   ├── section-head.json         # Logistic-regression head for the section model (weights, bias, cut-off)
 │   └── MODEL_CARD.md             # Data, metrics with baselines, limits, licences, how to retrain
+├── vendor/three.min.js, gsap.min.js  # three.js r149 (MIT) and GSAP 3.12.5 for the opening sequence
 ├── vendor/ort/                   # onnxruntime-web 1.23.2 JS + a minimal 1.5 MB wasm (see its README)
 ├── tools/
 │   ├── ui-check.js, ui-harness.js, ui/   # Headless Chrome scenario runner (Node 22+) and scenarios
@@ -84,9 +87,18 @@ pdf-page-studio/
   - **iPhone & iPad (iOS/iPadOS Safari)**: Illustrated 3-step guide for Safari Share $\rightarrow$ Add to Home Screen.
   - **Mac Desktop**: Safari Add to Dock + 1-click download of native `.webloc` shortcut file.
 - **Pristine Header**: Header typography kept clean and uncluttered (`PDF PAGE STUDIO`), eliminating version numbers from the visual brand row.
-- **Version Query Strings**: `styles.css?v=2.9.1`, `app.js?v=2.9.1`, `doc-groups.js?v=2.9.1`, `page-detect.js?v=2.9.1`, `split-dialog.js?v=2.9.1`, `export-name-dialog.js?v=2.9.1`, `page-finder.js?v=2.9.1`, `page-finder-ui.js?v=2.9.1`, `section-detect.js?v=2.9.1`, `index-scan.js?v=2.9.1`, `file-name.js?v=2.9.1`, `manifest.json?v=2.9.1` ensure immediate CDN and local browser cache bypass.
+- **Version Query Strings**: `styles.css?v=2.10.0`, `app.js?v=2.10.0`, `doc-groups.js?v=2.9.1`, `page-detect.js?v=2.9.1`, `split-dialog.js?v=2.9.1`, `export-name-dialog.js?v=2.9.1`, `page-finder.js?v=2.9.1`, `page-finder-ui.js?v=2.9.1`, `section-detect.js?v=2.9.1`, `index-scan.js?v=2.9.1`, `file-name.js?v=2.9.1`, `manifest.json?v=2.9.1` ensure immediate CDN and local browser cache bypass.
 - **Start over (title link)**: the `PDF PAGE STUDIO` brand (`#brand-home`, an `<a href="./">` with an accessible name and focus ring) restarts the app, mainly so phones have a way out. `startOver()` in `app.js` asks for confirmation only when pages are loaded, refetches the page's own scripts, styles and manifest with `cache: 'reload'` (4 s cap, failures ignored), then `location.replace`s to `?fresh=<timestamp>`; on load the param is stripped with `history.replaceState`. It deliberately does not touch localStorage, IndexedDB or Cache Storage: the site has none of its own and the `github.io` origin is shared with other projects. Scenario: `tools/ui/startover.js` (the real navigation is not exercised, only its inputs).
 - **Cache-Control Meta Directives**: `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` forces dynamic revalidation of the HTML document shell.
+
+### 3b. Opening Sequence
+- **What it is**: on every visit a ~5 s film plays before the landing page: a photo drifts through space, lightning strikes it, it falls as a meteor toward a real Earth, hits the ground (the whole screen shakes), becomes a PDF, and the PDF opens until it is the landing page. Files: `intro.js` (logic), `intro.css`, the overlay markup at the top of `<body>` in `index.html`, and a small bootstrap script in `<head>`.
+- **How it is drawn**: one pure function `frame(t)` draws everything for any moment, so it can be inspected exactly. three.js (vendored `vendor/three.min.js`, r149) draws the Milky Way, stars and Earth (NASA day map, city lights and clouds in `assets/intro/`, with an atmosphere shader computed from the view ray's closest approach to the planet). A 2D canvas draws lightning, the comet tail, sparks, shockwaves and light rays. The photo and PDF are SVG in the page. GSAP (`vendor/gsap.min.js`) supplies the clock, easing and the landing page's entrance. Looking at any moment: open `index.html?introDebug` and call `__introSeek(seconds)` (`__introTimes` lists the beats).
+- **When it does not play**: `?nointro` and `?fresh` (the Start over link) skip it before first paint and download none of its files. Reduced motion shows a short calm fade (logo and name, about 1.4 s, no shaking or flashing) and loads only `intro.js`. No WebGL, a failed texture download, or 5 s without textures opens the site straight away. A CSS failsafe hides the overlay after 14 s even if the script never runs; `<noscript>` hides it too. Skip button, Esc, Enter and Space end it early.
+- **The page underneath** is `inert` and scroll-locked only while it plays; both are undone when the overlay is removed.
+- **Tuning**: beats are in the `T` object at the top of `intro.js`; the photo's route is `P` and `photoState`; shake strength is `shake()` (capped to the spare edge of the stage, `inset: -7%` in `intro.css`). A struggling device drops its pixel ratio to 1 mid-sequence.
+- **Scenarios** (the first two need WebGL in headless Chrome): `UI_CHECK_QUERY=introcheck UI_CHECK_WEBGL=1 node tools/ui-check.js tools/ui/intro.js` and `.../intro-skip.js`; `tools/ui/intro-off.js` runs with the default (skipped) setup. All other scenarios run with `?nointro` unless `UI_CHECK_QUERY` says otherwise.
+- **Credits**: Earth imagery is NASA Visible Earth (Blue Marble, Black Marble, cloud map), public domain; three.js is MIT; GSAP 3.12.5 is used under its standard no-charge licence.
 
 ### 4. Documents View & Pages View
 - **Documents view (default)**: one card per source file, so multi-PDF uploads can be reordered or removed as whole documents. Each card shows the first page as a stacked-sheets thumbnail, a page-count badge, left/right arrows, delete, and "view pages".
@@ -107,7 +119,7 @@ pdf-page-studio/
 - **Export asks for a file name**: both Export buttons call `startExport()` (not `exportMergedPdf` directly). `ExportNameDialog.ask({ defaultName })` shows the last name without `.pdf`, selected, with a live "Saved as ..." preview built by `FileName.cleanPdfName` (illegal characters `\ / : * ? " < > |` become hyphens, a typed `.pdf` is never doubled, leading dots and Windows reserved names are fixed, long names are capped). Empty names disable Export; Esc, Cancel and the backdrop export nothing. The confirmed name is stored in `state.settings.filename` and the Options drawer field, so it is the default next time. `exportMergedPdf({ fileName })` still works directly. Tests: `test_file_name.js`, `tools/ui/exportname.js`.
 - **Header at every window width**: the full desktop header needs about 1270 px. Between 769 and 1320 px the secondary buttons become icon-only (each has a `title` and `aria-label`; Export keeps its label), below 980 px the subtitle is hidden and the bar wraps onto a second row, so no control is ever pushed off-screen. Phones (<= 768 px) use the bottom dock. Test: run `tools/ui/responsive.js` at several widths (`for w in 1600 1280 1100 900 800 770 700 390; do UI_CHECK_VIEWPORT=${w}x720 npm run ui-check -- tools/ui/responsive.js; done`).
 - **PDF opening is hardened**: every `pdfjsLib.getDocument` call (`parsePdfFile` in `app.js`, `SectionDetect.score`) passes `isEvalSupported: false`. The vendored pdf.js is 3.11.174, which is affected by CVE-2024-4367 (a crafted PDF can run script through a malicious font unless eval is off; fixed upstream in 4.2.67). Any new code that opens a PDF must do the same. Test: `tools/ui/pdfjs-safe.js` (spies on `getDocument`, and checks a text PDF still renders).
-- **Version**: assets are cache-busted with `?v=2.9.1`.
+- **Version**: assets are cache-busted with `?v=2.10.0`.
 
 ### 5. Photo Crop (manual editor and Auto Crop)
 - **Image pages only.** PDF pages never get a Crop button, and the Auto Crop button is hidden unless at least one image page exists (`CropState.countCroppable`). In a mixed upload it acts on image pages only. Label: `Auto Crop (N)`.

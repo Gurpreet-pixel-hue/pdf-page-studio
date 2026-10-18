@@ -66,7 +66,7 @@ npm test
 Browser checks (Node 22+ and Chrome): `npm run ui-check -- tools/ui/smoke.js`.
 
 ### Third-party code
-PDF.js and pdf-lib (bundled). ONNX Runtime Web 1.23.2 and a minimal ONNX Runtime wasm build from `scanic-ml` (MIT), loaded on first use of Auto Crop. The corner model is derived from DocCornerNet (MIT); see `models/MODEL_CARD.md` for data and licences.
+PDF.js and pdf-lib (bundled). The opening animation uses three.js (MIT) and GSAP (standard no-charge licence), with Earth imagery from NASA Visible Earth (Blue Marble, Black Marble and a cloud map; public domain). ONNX Runtime Web 1.23.2 and a minimal ONNX Runtime wasm build from `scanic-ml` (MIT), loaded on first use of Auto Crop. The corner model is derived from DocCornerNet (MIT); see `models/MODEL_CARD.md` for data and licences.
 
 ---
 
