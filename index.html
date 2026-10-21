@@ -15,16 +15,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PDF Studio">
-  <link rel="manifest" href="manifest.json?v=2.10.0">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.10.0">
+  <link rel="manifest" href="manifest.json?v=2.10.1">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2.10.1">
 
   <!-- High-End Editorial Typography: Plus Jakarta Sans & Syne -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2.10.0">
-  <link rel="stylesheet" href="intro.css?v=2.10.0">
+  <link rel="stylesheet" href="styles.css?v=2.10.1">
+  <link rel="stylesheet" href="intro.css?v=2.10.1">
   <noscript><style>#intro { display: none !important; }</style></noscript>
   <script>
     /* Opening sequence: decide before first paint so the landing page never flashes.
@@ -33,12 +33,12 @@
       var html = document.documentElement, q = window.location.search;
       if (/[?&](nointro|fresh)(=|&|$)/.test(q)) { html.classList.add('no-intro'); return; }
       var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      var scripts = ['intro.js?v=2.10.0'];
+      var scripts = ['intro.js?v=2.10.1'];
       if (calm) html.classList.add('intro-reduced');
       else {
-        window.__introVersion = '?v=2.10.0';
+        window.__introVersion = '?v=2.10.1';
         ['earth-day', 'earth-night', 'earth-clouds'].forEach(function (n) {
-          var l = document.createElement('link'); l.rel = 'preload'; l.as = 'image'; l.href = 'assets/intro/' + n + '.jpg?v=2.10.0'; document.head.appendChild(l);
+          var l = document.createElement('link'); l.rel = 'preload'; l.as = 'image'; l.href = 'assets/intro/' + n + '.jpg?v=2.10.1'; document.head.appendChild(l);
         });
         scripts = ['vendor/three.min.js', 'vendor/gsap.min.js'].concat(scripts);
       }
@@ -166,7 +166,7 @@
         </label>
 
         <!-- Hidden Inputs -->
-        <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/webp, image/bmp, image/gif, application/pdf" class="sr-only">
+        <input type="file" id="file-input" multiple accept="image/*, image/heic, image/heif, image/png, image/jpeg, image/webp, image/bmp, image/gif, application/pdf" class="sr-only">
         <input type="file" id="camera-input" accept="image/*" capture="environment" class="sr-only">
 
         <!-- Reorder Options Dropdown Trigger -->
@@ -696,7 +696,7 @@
           </div>
           <div class="finder-source">
             <label class="btn btn-outline" for="finder-index-input">Add contents page photo (optional)</label>
-            <input type="file" id="finder-index-input" accept="image/png, image/jpeg, image/webp" class="sr-only">
+            <input type="file" id="finder-index-input" accept="image/*, image/heic, image/heif, image/png, image/jpeg, image/webp" class="sr-only">
             <span class="finder-file-name" id="finder-index-name">None</span>
             <button type="button" class="btn btn-outline" id="finder-index-clear" hidden>Remove</button>
           </div>
@@ -781,7 +781,7 @@
         <div class="install-modal-header">
           <div class="install-header-left">
             <div class="install-app-icon-preview">
-              <img src="assets/icon-192.png?v=2.10.0" alt="PDF Studio Icon" width="38" height="38">
+              <img src="assets/icon-192.png?v=2.10.1" alt="PDF Studio Icon" width="38" height="38">
             </div>
             <div>
               <h3 class="install-modal-title">Add PDF Page Studio</h3>
@@ -869,19 +869,19 @@
 
   </div>
 
-  <script src="crop-geometry.js?v=2.10.0"></script>
-  <script src="image-normalize.js?v=2.10.0"></script>
-  <script src="crop-state.js?v=2.10.0"></script>
-  <script src="doc-groups.js?v=2.10.0"></script>
-  <script src="crop-editor.js?v=2.10.0"></script>
-  <script src="page-detect.js?v=2.10.0"></script>
-  <script src="file-name.js?v=2.10.0"></script>
-  <script src="split-dialog.js?v=2.10.0"></script>
-  <script src="page-finder.js?v=2.10.0"></script>
-  <script src="page-finder-ui.js?v=2.10.0"></script>
-  <script src="section-detect.js?v=2.10.0"></script>
-  <script src="index-scan.js?v=2.10.0"></script>
-  <script src="export-name-dialog.js?v=2.10.0"></script>
-  <script src="app.js?v=2.10.0"></script>
+  <script src="crop-geometry.js?v=2.10.1"></script>
+  <script src="image-normalize.js?v=2.10.1"></script>
+  <script src="crop-state.js?v=2.10.1"></script>
+  <script src="doc-groups.js?v=2.10.1"></script>
+  <script src="crop-editor.js?v=2.10.1"></script>
+  <script src="page-detect.js?v=2.10.1"></script>
+  <script src="file-name.js?v=2.10.1"></script>
+  <script src="split-dialog.js?v=2.10.1"></script>
+  <script src="page-finder.js?v=2.10.1"></script>
+  <script src="page-finder-ui.js?v=2.10.1"></script>
+  <script src="section-detect.js?v=2.10.1"></script>
+  <script src="index-scan.js?v=2.10.1"></script>
+  <script src="export-name-dialog.js?v=2.10.1"></script>
+  <script src="app.js?v=2.10.1"></script>
 </body>
 </html>

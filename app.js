@@ -33,11 +33,11 @@ const state = {
   }
 };
 
-const ASSET_VERSION = '2.9.3';
+const ASSET_VERSION = '2.10.1';
 const WORKING_MAX_EDGE = 2000;      // longest side of the in-memory working copy
 const MAX_EXPORT_PIXELS = 12000000; // canvas area cap: iOS Safari limits canvas size
 const CARD_THUMB_EDGE = 520;        // longest side of the small thumbnail shown on grid cards
-const INGEST_CONCURRENCY = 1;       // photos decoded at once. 2 gave no speed-up in desktop timing and doubles peak memory (an 18 MP photo decodes to ~70 MB), so it stays 1 until measured on a phone
+const INGEST_CONCURRENCY = 4;       // parallel photo ingest workers (canvases are zeroed immediately so peak RAM stays low)
 
 // DOM Element Cache
 const elements = {
@@ -200,7 +200,7 @@ async function handleFiles(fileList) {
 
   async function ingestOne(file) {
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) return parsePdfFile(file);
-    if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp|gif)$/i.test(file.name)) return [await parseImageFile(file)];
+    if (file.type.startsWith('image/') || ImageNormalize.isHeicLike(file) || /\.(png|jpe?g|webp|bmp|gif|heic|heif)$/i.test(file.name)) return [await parseImageFile(file)];
     console.warn('Unsupported file format:', file.name);
     return [];
   }
@@ -277,6 +277,8 @@ async function parsePdfFile(file) {
         }).promise;
 
         const thumbnailDataUrl = await canvasToObjectUrl(canvas, 'image/jpeg', 0.85);
+        canvas.width = 0;
+        canvas.height = 0;
         const originalViewport = page.getViewport({ scale: 1.0 });
 
         pageItems.push({
@@ -311,15 +313,26 @@ async function parsePdfFile(file) {
  * The full-resolution Blob is kept for export.
  */
 async function parseImageFile(file) {
-  if (ImageNormalize.isHeicLike(file)) {
-    // iOS Safari converts HEIC to JPEG when a photo is picked, so HEIC only arrives via drag-and-drop.
-    throw Object.assign(new Error('HEIC is not supported in this browser'), {
-      userMessage: `${file.name}: HEIC photos can't be opened here. Pick the photo from your phone's gallery (it converts to JPEG) or convert it to JPEG first.`
-    });
-  }
   const blob = file;
-  const jpegOrientation = ImageNormalize.readJpegOrientation(await blob.slice(0, 131072).arrayBuffer());
-  const { img, revoke } = await loadImageElement(blob);
+  const headerPromise = blob.slice(0, 65536).arrayBuffer()
+    .then((buf) => ImageNormalize.readJpegOrientation(buf))
+    .catch(() => 1);
+
+  let loaded;
+  try {
+    loaded = await loadImageElement(blob);
+  } catch (err) {
+    if (ImageNormalize.isHeicLike(file)) {
+      // iOS WebKit decodes HEIC natively above; desktop browsers without HEIC support land here.
+      throw Object.assign(new Error('HEIC is not supported in this browser'), {
+        userMessage: `${file.name}: HEIC photos can't be opened here. Pick the photo from your phone's gallery (it converts to JPEG) or convert it to JPEG first.`
+      });
+    }
+    throw err;
+  }
+
+  const { img, revoke } = loaded;
+  const jpegOrientation = await headerPromise;
 
   try {
     const width = img.naturalWidth;
@@ -339,18 +352,27 @@ async function parseImageFile(file) {
     ctx.drawImage(img, 0, 0, work.width, work.height);
 
     const type = keepsAlpha ? 'image/png' : 'image/jpeg';
-    const thumbnailDataUrl = await canvasToObjectUrl(canvas, type, 0.9); // a blob: URL (name kept for existing callers)
-    let cardThumbUrl = thumbnailDataUrl;
+    let smallCanvas = null;
     if (Math.max(work.width, work.height) > CARD_THUMB_EDGE) {
       const small = ImageNormalize.fitWithin(work.width, work.height, CARD_THUMB_EDGE);
-      const smallCanvas = document.createElement('canvas');
+      smallCanvas = document.createElement('canvas');
       smallCanvas.width = small.width;
       smallCanvas.height = small.height;
       const smallCtx = smallCanvas.getContext('2d');
-      smallCtx.imageSmoothingQuality = 'high';
       smallCtx.drawImage(canvas, 0, 0, small.width, small.height);
-      cardThumbUrl = await canvasToObjectUrl(smallCanvas, type, 0.85);
     }
+
+    const [thumbnailDataUrl, smallThumbUrl] = await Promise.all([
+      canvasToObjectUrl(canvas, type, 0.85), // a blob: URL (name kept for existing callers)
+      smallCanvas ? canvasToObjectUrl(smallCanvas, type, 0.8) : Promise.resolve(null)
+    ]);
+    canvas.width = 0;
+    canvas.height = 0;
+    if (smallCanvas) {
+      smallCanvas.width = 0;
+      smallCanvas.height = 0;
+    }
+    const cardThumbUrl = smallThumbUrl || thumbnailDataUrl;
 
     return {
       id: generateId(),
@@ -564,12 +586,16 @@ async function refreshCropPreview(item) {
   const natural = CropGeometry.quadOutputSize(quadPx);
   const size = CropGeometry.capPixels(natural.width, natural.height, PREVIEW_MAX_PIXELS);
   const warped = CropGeometry.warpPerspective(ctx.getImageData(0, 0, canvas.width, canvas.height), quadPx, size.width, size.height);
+  canvas.width = 0;
+  canvas.height = 0;
   const out = document.createElement('canvas');
   out.width = warped.width;
   out.height = warped.height;
   out.getContext('2d').putImageData(new ImageData(warped.data, warped.width, warped.height), 0, 0);
   const previous = item.previewUrl;
   item.previewUrl = await canvasToObjectUrl(out, 'image/jpeg', 0.85);
+  out.width = 0;
+  out.height = 0;
   if (previous) releasePageUrls([{ previewUrl: previous }]);
 }
 
@@ -1855,11 +1881,17 @@ async function renderImagePageCanvas(item) {
       const warped = CropGeometry.warpPerspective(
         workingCtx.getImageData(0, 0, working.width, working.height), quadPx, size.width, size.height
       );
+      working.width = 0;
+      working.height = 0;
       const cropped = document.createElement('canvas');
       cropped.width = warped.width;
       cropped.height = warped.height;
       cropped.getContext('2d').putImageData(new ImageData(warped.data, warped.width, warped.height), 0, 0);
       working = cropped;
+    }
+
+    if (item.rotation === 0) {
+      return working;
     }
 
     const quarterTurn = item.rotation === 90 || item.rotation === 270;
@@ -1870,6 +1902,8 @@ async function renderImagePageCanvas(item) {
     ctx.translate(out.width / 2, out.height / 2);
     ctx.rotate((item.rotation * Math.PI) / 180);
     ctx.drawImage(working, -working.width / 2, -working.height / 2);
+    working.width = 0;
+    working.height = 0;
     return out;
   } finally {
     revoke();
@@ -1882,40 +1916,45 @@ async function renderImagePageCanvas(item) {
  */
 async function embedCanvasImage(mergedPdf, item) {
   const canvas = await renderImagePageCanvas(item);
-  const ctx = canvas.getContext('2d');
+  try {
+    const ctx = canvas.getContext('2d');
 
-  // USP 3: High-Contrast Document Scan Enhancer (B&W Photocopy Mode)
-  if (state.settings.enhanceScans) {
-    try {
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imgData.data;
-      for (let p = 0; p < d.length; p += 4) {
-        // Perceived luminance
-        const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
-        // S-curve contrast boost to wipe yellow lighting and background phone shadows
-        const enhanced = lum > 175 ? 255 : (lum < 65 ? 0 : Math.round((lum - 65) * (255 / 110)));
-        d[p] = enhanced;
-        d[p + 1] = enhanced;
-        d[p + 2] = enhanced;
+    // USP 3: High-Contrast Document Scan Enhancer (B&W Photocopy Mode)
+    if (state.settings.enhanceScans) {
+      try {
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = imgData.data;
+        for (let p = 0; p < d.length; p += 4) {
+          // Perceived luminance
+          const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+          // S-curve contrast boost to wipe yellow lighting and background phone shadows
+          const enhanced = lum > 175 ? 255 : (lum < 65 ? 0 : Math.round((lum - 65) * (255 / 110)));
+          d[p] = enhanced;
+          d[p + 1] = enhanced;
+          d[p + 2] = enhanced;
+        }
+        ctx.putImageData(imgData, 0, 0);
+      } catch (e) {
+        console.warn('Scan enhance filter skipped:', e);
       }
-      ctx.putImageData(imgData, 0, 0);
-    } catch (e) {
-      console.warn('Scan enhance filter skipped:', e);
     }
-  }
 
-  const jpegQuality = state.settings.quality >= 1.0 ? 0.95 : state.settings.quality;
-  const jpegBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', jpegQuality));
-  if (jpegBlob) {
-    try {
-      return await mergedPdf.embedJpg(await jpegBlob.arrayBuffer());
-    } catch (err) {
-      // fall through to PNG
+    const jpegQuality = state.settings.quality >= 1.0 ? 0.95 : state.settings.quality;
+    const jpegBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', jpegQuality));
+    if (jpegBlob) {
+      try {
+        return await mergedPdf.embedJpg(await jpegBlob.arrayBuffer());
+      } catch (err) {
+        // fall through to PNG
+      }
     }
+    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!pngBlob) throw new Error('Could not encode this page. The photo may be too large for this device.');
+    return await mergedPdf.embedPng(await pngBlob.arrayBuffer());
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
   }
-  const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!pngBlob) throw new Error('Could not encode this page. The photo may be too large for this device.');
-  return mergedPdf.embedPng(await pngBlob.arrayBuffer());
 }
 
 /**
